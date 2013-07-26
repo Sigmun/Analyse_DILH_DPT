@@ -2,7 +2,7 @@ Attribute VB_Name = "Module_Analyse_DPT_DILH"
 '=====================
 'Copyright 2013
 'Auteur  : Simon Verley
-'Version : 1.2.1
+'Version : 1.2.2
 '=====================
 
 Sub analyseFichier()
@@ -56,6 +56,12 @@ Sub traiteFichier()
     
     ' Détection de la station à partir du nom de fichier
     Station = Split(ActiveWorkbook.Name, "_")(0)
+    
+    If Split(ActiveWorkbook.Name, ".")(0) = "Log_DIL-DAME-BAST" _
+    Or Split(ActiveWorkbook.Name, "_")(0) = "Bastille" Then
+        Station = "Bastille"
+    End If
+        
     
     Fichier_suivi = "Suivi défaut DIL.xls"
     Windows(Fichier_suivi).Activate
