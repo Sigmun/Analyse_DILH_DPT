@@ -2,7 +2,7 @@ Attribute VB_Name = "Module_Analyse_DPT_DILH"
 '=====================
 'Copyright 2013
 'Auteur  : Simon Verley
-'Version : 1.2
+'Version : 1.2.1
 '=====================
 
 Sub analyseFichier()
@@ -28,6 +28,7 @@ Sub analyseFichier()
         compteur_rapi, horaires_rapi, compteur_im, duree_im, horaires_im
     
     MsgBox "Le rapport d'analyse du fichier " & ActiveWorkbook.FullName & " a été généré (suffixe '_Analyse.txt adjoint')."
+
 End Sub
 
 Sub traiteFichier()
@@ -158,11 +159,18 @@ Function analyseDefautDPTetDILH(ByRef jour As Date, ByRef Quai As String, _
     'Boucle sur toutes les cellules de la colonne A
     'et on sort si on passe Heure_fin:Minute_fin de jour_precedent_2
     '
+    Lasti = False
     For i = 2 To CLng(Range("A65536").End(xlUp).Row)
         jour = DateSerial(Cells(i, C_Annee), Cells(i, C_Mois), Cells(i, C_Jour))
-        If jour = jour_precedent Then GoTo Line1
-        If jour = jour_precedent + 1 And Cells(i, C_Heure) * 60 + Cells(i, C_Minute) < Heure_deb * 60 + Minute_deb Then GoTo Line1
-        If jour = jour_precedent + 2 And Cells(i, C_Heure) * 60 + Cells(i, C_Minute) > Heure_fin * 60 + Minute_fin Then Exit For
+        If jour = jour_precedent Then GoTo Nexti
+        If jour = jour_precedent + 1 And Cells(i, C_Heure) * 60 + Cells(i, C_Minute) < Heure_deb * 60 + Minute_deb Then GoTo Nexti
+        If jour = jour_precedent + 2 And Cells(i, C_Heure) * 60 + Cells(i, C_Minute) > Heure_fin * 60 + Minute_fin Then
+            If Not Lasti Then
+                Lasti = True
+                GoTo FinAnalyse
+            End If
+            Exit For
+        End If
         '
         'Compteur trains
         '
@@ -216,45 +224,48 @@ Function analyseDefautDPTetDILH(ByRef jour As Date, ByRef Quai As String, _
                 Dim PP_Def_DILH() As String
                 ReDim PP_Def_DILH(1 To NbPP * 9)
                 'NbPP_Def = 0
-            ElseIf valeur = 1 And analyse_im Then
-                analyse_im = False
-                t_fin_im = jour * 24 * 3600 + Cells(i, C_Heure) * 3600 + Cells(i, C_Minute) * 60 + Cells(i, C_Seconde)
-                duree_im = duree_im + t_fin_im - t_deb_im
-                horaires_im(compteur_im) = horaires_im(compteur_im) & " (" & TimeString(CLng(t_fin_im - t_deb_im)) & ") ; " & " Défauts : " & Chr(10)   '" (" & CInt(t_fin_im - t_deb_im) & "s) ; "
-                defaut = False
-                premier = True
-                For Each d In PP_Def_DPT
-                    If d <> "" Then
-                        If premier Then
-                            horaires_im(compteur_im) = horaires_im(compteur_im) & "    DPT : " & Chr(10)
-                            premier = False
+            ElseIf valeur = 1 Then
+FinAnalyse:
+                If analyse_im Then
+                    analyse_im = False
+                    t_fin_im = jour * 24 * 3600 + Cells(i, C_Heure) * 3600 + Cells(i, C_Minute) * 60 + Cells(i, C_Seconde)
+                    duree_im = duree_im + t_fin_im - t_deb_im
+                    horaires_im(compteur_im) = horaires_im(compteur_im) & " (" & TimeString(CLng(t_fin_im - t_deb_im)) & ") ; " & " Défauts : " & Chr(10)   '" (" & CInt(t_fin_im - t_deb_im) & "s) ; "
+                    defaut = False
+                    premier = True
+                    For Each d In PP_Def_DPT
+                        If d <> "" Then
+                            If premier Then
+                                horaires_im(compteur_im) = horaires_im(compteur_im) & "    DPT : " & Chr(10)
+                                premier = False
+                            End If
+                            defaut = True
+                            horaires_im(compteur_im) = horaires_im(compteur_im) & "      - " & d & " ; " & Chr(10)
                         End If
-                        defaut = True
-                        horaires_im(compteur_im) = horaires_im(compteur_im) & "      - " & d & " ; " & Chr(10)
-                    End If
-                Next d
-                'If Not premier Then horaires_im(compteur_im) = horaires_im(compteur_im) & Chr(10)
-                premier = True
-                For Each d In PP_Def_DILH
-                    If d <> "" Then
-                          If premier Then
-                            horaires_im(compteur_im) = horaires_im(compteur_im) & "    DILH : " & Chr(10)
-                            premier = False
+                    Next d
+                    'If Not premier Then horaires_im(compteur_im) = horaires_im(compteur_im) & Chr(10)
+                    premier = True
+                    For Each d In PP_Def_DILH
+                        If d <> "" Then
+                              If premier Then
+                                horaires_im(compteur_im) = horaires_im(compteur_im) & "    DILH : " & Chr(10)
+                                premier = False
+                            End If
+                            defaut = True
+                            horaires_im(compteur_im) = horaires_im(compteur_im) & "      - " & d & " ; " & Chr(10)
                         End If
-                        defaut = True
-                        horaires_im(compteur_im) = horaires_im(compteur_im) & "      - " & d & " ; " & Chr(10)
+                    Next d
+                    If Not defaut Then
+                        'horaires_im(compteur_im) = horaires_im(compteur_im) & "      Aucun défaut détecté (Redémarrage API ?)" & Chr(10)
+                        compteur_im = compteur_im - 1
+                        ReDim Preserve horaires_im(1 To compteur_im)
+                        duree_im = duree_im - t_fin_im + t_deb_im
+                    Else
+                        horaires_im(compteur_im) = horaires_im(compteur_im) & Chr(10)
                     End If
-                Next d
-                If Not defaut Then
-                    'horaires_im(compteur_im) = horaires_im(compteur_im) & "      Aucun défaut détecté (Redémarrage API ?)" & Chr(10)
-                    compteur_im = compteur_im - 1
-                    ReDim Preserve horaires_im(1 To compteur_im)
-                    duree_im = duree_im - t_fin_im + t_deb_im
                 Else
-                    horaires_im(compteur_im) = horaires_im(compteur_im) & Chr(10)
+                    analyse_im = False
                 End If
-            Else
-                analyse_im = False
             End If
         End If
         ' Analyse des defauts
@@ -291,7 +302,7 @@ Function analyseDefautDPTetDILH(ByRef jour As Date, ByRef Quai As String, _
         'Memorise l'etat precedent
         last_im = valeur
 
-Line1:
+Nexti:
         'Incrémente la variable d'une unité afin de tester la cellule suivante
     Next i
     
@@ -299,7 +310,7 @@ End Function
 
 Sub genereRapport(compteur_train As Integer, compteur_train_im As Integer, compteur_train_dilh1 As Integer, compteur_train_dilh2 As Integer, _
         compteur_rapi As Integer, horaires_rapi As String, _
-        compteur_im As Integer, duree_im As Long, horaires_im() As String , _
+        compteur_im As Integer, duree_im As Long, horaires_im() As String, _
         Optional afficheRapport As Boolean = True)
         
     Rapport = _
