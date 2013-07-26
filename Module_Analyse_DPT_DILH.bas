@@ -2,6 +2,13 @@ Attribute VB_Name = "Module_Analyse_DPT_DILH"
 '=====================
 'Copyright 2013
 'Auteur  : Simon Verley
+'Version : 1.2.7
+' Nouveautés : - comptage des passages de train sans PPFV ou COPP_SAET
+' Embellissement :
+'              - Mise en forme de la colonne COPP_SAET
+'              - Horaire du dernier train et non derniere ligne < Heure de fin
+'              - Message si la macro arrive en derniere ligne (Heure de fin > derniere ligne)
+'              - Message si train encore a quai apres heure de fin (stationnement...)
 'Version : 1.2.6
 ' BUG : le filtrage des default DTP < 1.2s est encore amélioré
 ' Nouveautés : - comptage des défaults dilh et dpt séparé et report dans Suivi défault DIL.xls
@@ -28,6 +35,7 @@ Sub analyseFichier()
     Dim compteur_train_dilh1 As Integer
     Dim compteur_train_dilh2 As Integer
     Dim horaires_train As String
+    Dim horaires_default_train As String
     Dim compteur_rapi As Integer
     Dim horaires_rapi As String
     Dim compteur_im As Integer
@@ -36,11 +44,11 @@ Sub analyseFichier()
     Dim compteur_dilh As Integer
     Dim compteur_dpt As Integer
     
-    If analyseDefautDPTetDILH(jour, Quai, compteur_train, compteur_train_im, compteur_train_dilh1, compteur_train_dilh2, horaires_train, _
+    If analyseDefautDPTetDILH(jour, Quai, compteur_train, compteur_train_im, compteur_train_dilh1, compteur_train_dilh2, horaires_train, horaires_default_train, _
         compteur_rapi, horaires_rapi, compteur_im, duree_im, horaires_im, compteur_dilh, compteur_dpt) _
         <> 0 Then Exit Sub
     
-    genereRapport compteur_train, compteur_train_im, compteur_train_dilh1, compteur_train_dilh2, horaires_train, _
+    genereRapport compteur_train, compteur_train_im, compteur_train_dilh1, compteur_train_dilh2, horaires_train, horaires_default_train, _
         compteur_rapi, horaires_rapi, compteur_im, duree_im, horaires_im, compteur_dilh, compteur_dpt
     
     metForme
@@ -59,6 +67,7 @@ Sub completeSuivi()
     Dim compteur_train_dilh1 As Integer
     Dim compteur_train_dilh2 As Integer
     Dim horaires_train As String
+    Dim horaires_default_train As String
     Dim compteur_rapi As Integer
     Dim horaires_rapi As String
     Dim compteur_im As Integer
@@ -67,11 +76,11 @@ Sub completeSuivi()
     Dim compteur_dilh As Integer
     Dim compteur_dpt As Integer
     
-    If analyseDefautDPTetDILH(jour, Quai, compteur_train, compteur_train_im, compteur_train_dilh1, compteur_train_dilh2, horaires_train, _
+    If analyseDefautDPTetDILH(jour, Quai, compteur_train, compteur_train_im, compteur_train_dilh1, compteur_train_dilh2, horaires_train, horaires_default_train, _
         compteur_rapi, horaires_rapi, compteur_im, duree_im, horaires_im, compteur_dilh, compteur_dpt) _
         <> 0 Then Exit Sub
     
-    genereRapport compteur_train, compteur_train_im, compteur_train_dilh1, compteur_train_dilh2, horaires_train, _
+    genereRapport compteur_train, compteur_train_im, compteur_train_dilh1, compteur_train_dilh2, horaires_train, horaires_default_train, _
         compteur_rapi, horaires_rapi, compteur_im, duree_im, horaires_im, compteur_dilh, compteur_dpt
     
     
@@ -151,7 +160,7 @@ Sub metForme()
 '
     ' le nom des tableaux suivant correspond a "Couleur si 0"+"Couleur si 1"
     VertGris = Array("PPFV*", "E_PT_MP05*", "PT_Confirme*")
-    GrisVert = Array("E_PT_MP89*", "E_Acq_MES*", "E_Acq_PP*", "Redém_API")
+    GrisVert = Array("E_PT_MP89*", "E_Acq_MES*", "E_Acq_PP*", "Redém_API", "COPP_SAET")
     GrisRouge = Array("SLG_PP*", "SLC_PP*", "SLD_PP*", "E_DILF_SL*", "UTG*", "UTC*", "UTD*", "*.Defaut_Dyna", "*.Defaut_SurfRef", "*.Incoherent", "Dyn*_DF*", "SF*_DF*", "DFQ*_SL*")
     RougeGris = Array("UTH*")
     RougeVert = Array("Info_Maint", "E_Def_DPT*", "Diag_Tapis*", "*.DonneesRecCor")
@@ -229,7 +238,7 @@ Private Sub appliqueMEFC(col As Integer, couleur_0 As Integer, couleur_1 As Inte
 End Sub
 
 Function analyseDefautDPTetDILH(ByRef jour As Date, ByRef Quai As String, _
-        ByRef compteur_train As Integer, ByRef compteur_train_im As Integer, ByRef compteur_train_dilh1 As Integer, ByRef compteur_train_dilh2 As Integer, ByRef horaires_train As String, _
+        ByRef compteur_train As Integer, ByRef compteur_train_im As Integer, ByRef compteur_train_dilh1 As Integer, ByRef compteur_train_dilh2 As Integer, ByRef horaires_train As String, ByRef horaires_default_train As String, _
         ByRef compteur_rapi As Integer, ByRef horaires_rapi As String, _
         ByRef compteur_im As Integer, ByRef duree_im As Long, ByRef horaires_im() As String, ByRef compteur_dilh As Integer, ByRef compteur_dpt As Integer _
         ) As Integer
@@ -260,7 +269,8 @@ Function analyseDefautDPTetDILH(ByRef jour As Date, ByRef Quai As String, _
     
     Quai = Split(Cells(1, C_PT_Confirme), "_")(UBound(Split(Cells(1, C_PT_Confirme), "_")))
     
-    C_Train = C_PT_Confirme
+    C_COPP = getWordCol("COPP_SAET", 1, True) '10
+    C_PPFV = getWordCol("PPFV", 1, True) '10
     C_rapi = getWordCol("Redém_API", 1, True) '20  'RAPI
     C_IM = getWordCol("Info_Maint", 1, True) '21  'IM
     C_Annee = 1
@@ -269,6 +279,8 @@ Function analyseDefautDPTetDILH(ByRef jour As Date, ByRef Quai As String, _
     C_Heure = getWordCol("heure", 1, True) '4
     C_Minute = getWordCol("min", 1, True) '5
     C_Seconde = C_Minute + 1
+    
+    C_Train = C_PT_Confirme
 
     i = 2
     last_train = 1 'Valeur par default
@@ -277,6 +289,7 @@ Function analyseDefautDPTetDILH(ByRef jour As Date, ByRef Quai As String, _
     compteur_train_dilh1 = 0
     compteur_train_dilh2 = 0
     horaires_train = ""
+    horaires_default_train = ""
     
     last_rapi = 0 'Valeur par default
     compteur_rapi = 0
@@ -310,17 +323,28 @@ Function analyseDefautDPTetDILH(ByRef jour As Date, ByRef Quai As String, _
     'Boucle sur toutes les cellules de la colonne A
     'et on sort si on passe Heure_fin:Minute_fin de jour_precedent+2
     '
+    flag_ppfv = False
+    flag_copp = False
     Lasti = False
+    Firsti = 0
     NbLignes = CLng(Range("A65536").End(xlUp).Row)
     For i = 2 To NbLignes
         jour = DateSerial(Cells(i, C_Annee), Cells(i, C_Mois), Cells(i, C_Jour))
         heure = jour * 24 * 3600 + Cells(i, C_Heure) * 3600 + Cells(i, C_Minute) * 60 + Cells(i, C_Seconde)
-        If jour = jour_precedent Then GoTo Nexti
-        If jour = jour_precedent + 1 And Cells(i, C_Heure) * 60 + Cells(i, C_Minute) < Heure_deb * 60 + Minute_deb Then GoTo Nexti
+        If jour = jour_precedent Then
+            GoTo Nexti
+        ElseIf jour = jour_precedent + 1 And Cells(i, C_Heure) * 60 + Cells(i, C_Minute) < Heure_deb * 60 + Minute_deb Then
+            GoTo Nexti
+        ElseIf Firsti = 0 Then
+            Firsti = i
+        End If
         If (jour = jour_precedent + 2 And Cells(i + 1, C_Heure) * 60 + Cells(i + 1, C_Minute) > Heure_fin * 60 + Minute_fin) Or i = NbLignes Then
+            If i = NbLignes Then MsgBox "Le fichier est trop long pour une analyse complete." & Chr(10) _
+              & "Veuillez effacer les lignes de 2 à " & Firsti & " en dehors d'Excel (via Bloc-notes par exemple) et relancer l'analyse ensuite."
             If Not Lasti Then
                 Lasti = True
-                horaires_train = horaires_train & " à " & Format(TimeSerial(Cells(i, C_Heure), Cells(i, C_Minute), CInt(Cells(i, C_Seconde))), "hh:mm")
+                horaires_train = horaires_train & " à " & last_horaire_train
+                If Cells(i, C_Train) = 0 Then horaires_train = horaires_train & " (train encore à quai à " & Heure_fin & "h" & Minute_fin & ")"
                 GoTo FinAnalyse
             End If
             Exit For
@@ -334,13 +358,30 @@ Function analyseDefautDPTetDILH(ByRef jour As Date, ByRef Quai As String, _
         If valeur <> last_train Then
            'Test si descendant
             If valeur = 0 Then
+                If compteur_train < 5 Or compteur_train > 250 Then _
+                  Debug.Print i, Format(TimeSerial(Cells(i, C_Heure), Cells(i, C_Minute), CInt(Cells(i, C_Seconde))), "hh:mm:ss"), compteur_train
                 nouveau_train = 1
-                If compteur_train = 0 Then horaires_train = " de " & Format(TimeSerial(Cells(i, C_Heure), Cells(i, C_Minute), CInt(Cells(i, C_Seconde))), "hh:mm")
+                last_horaire_train = Format(TimeSerial(Cells(i, C_Heure), Cells(i, C_Minute), CInt(Cells(i, C_Seconde))), "hh:mm:ss")
+                If compteur_train = 0 Then horaires_train = " de " & last_horaire_train
+            ElseIf valeur = 1 Then
+                If Not flag_ppfv Or Not flag_copp Then
+                    horaires_default_train = horaires_default_train & last_horaire_train & " ("
+                    If Not flag_ppfv Then horaires_default_train = horaires_default_train & "PPFV"
+                    If Not flag_copp Then horaires_default_train = horaires_default_train & " COPP"
+                    horaires_default_train = horaires_default_train & ") ; "
+                End If
+                flag_ppfv = False
+                flag_copp = False
             End If
         End If
         'Memorise l'etat precedent
         last_train = valeur
         compteur_train = compteur_train + nouveau_train
+        'Verification de coherence PPFV / COPP_SAET avec PT_confirm
+        If valeur = 0 Then
+            If Cells(i, C_PPFV) = 0 Then flag_ppfv = True
+            If Cells(i, C_COPP) = 1 Then flag_copp = True
+        End If
         '
         'Compteur redem API
         '
@@ -350,13 +391,7 @@ Function analyseDefautDPTetDILH(ByRef jour As Date, ByRef Quai As String, _
            'Test si montant ou descendant
            If valeur = 1 Then
               compteur_rapi = compteur_rapi + 1
-              't_deb_rapi = jour * 24 * 3600 + Cells(i, C_Heure) * 3600 + Cells(i, C_Minute) * 60 + Cells(i, C_Seconde)
-              'horaires_rapi = horaires_rapi & Cells(i, C_Heure) & ":" & Cells(i, C_Minute) & ":" & Cells(i, C_Seconde) & " ; "
               horaires_rapi = horaires_rapi & Format(TimeSerial(Cells(i, C_Heure), Cells(i, C_Minute), CInt(Cells(i, C_Seconde))), "hh:mm") & " ; "
-           'ElseIf valeur = 0 Then
-              't_fin_rapi = jour * 24 * 3600 + Cells(i, C_Heure) * 3600 + Cells(i, C_Minute) * 60 + Cells(i, C_Seconde)
-              'duree_rapi = duree_rapi + t_fin_rapi - t_deb_rapi
-              'horaires_rapi = horaires_rapi & " (" & CLng(t_fin_rapi - t_deb_rapi) & "s) ; "
            End If
         End If
         'Memorise l'etat precedent
@@ -400,7 +435,6 @@ FinAnalyse:
                             horaires_im(compteur_im) = horaires_im(compteur_im) & "      - " & d & " ; " & Chr(10)
                         End If
                     Next d
-                    'If Not premier Then horaires_im(compteur_im) = horaires_im(compteur_im) & Chr(10)
                     premier = True
                     For Each d In PP_Def_DILH
                         If d <> "" Then
@@ -486,7 +520,7 @@ Nexti:
     
 End Function
 
-Sub genereRapport(compteur_train As Integer, compteur_train_im As Integer, compteur_train_dilh1 As Integer, compteur_train_dilh2 As Integer, horaires_train As String, _
+Sub genereRapport(compteur_train As Integer, compteur_train_im As Integer, compteur_train_dilh1 As Integer, compteur_train_dilh2 As Integer, horaires_train As String, horaires_default_train As String, _
         compteur_rapi As Integer, horaires_rapi As String, _
         compteur_im As Integer, duree_im As Long, horaires_im() As String, compteur_dilh As Integer, compteur_dpt As Integer, _
         Optional afficheRapport As Boolean = True)
@@ -496,6 +530,8 @@ Sub genereRapport(compteur_train As Integer, compteur_train_im As Integer, compt
            "Trains : " & Chr(10) & _
            "  " & compteur_train & " passages de train " & horaires_train & Chr(10) & _
            "  dont " & compteur_train_im & " pendant Info Maintenance." & Chr(10)
+    If horaires_default_train <> "" Then Rapport = Rapport & _
+           "  ATTENTION : Passages de trains sans PPFV ou COPP : " & horaires_default_train & Chr(10)
     If compteur_train_dilh1 > 0 Then Rapport = Rapport & _
            "     DILH défaut simple : " & compteur_train_dilh1 & Chr(10)
     If compteur_train_dilh2 > 0 Then Rapport = Rapport & _
