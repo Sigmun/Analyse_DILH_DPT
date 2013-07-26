@@ -2,6 +2,8 @@ Attribute VB_Name = "Module_Analyse_DPT_DILH"
 '=====================
 'Copyright 2013
 'Auteur  : Simon Verley
+'Version : 1.3.0
+' Nouveautés : - Detection des defauts Alim et Relai (ToDO: les faire parvenir jusqu'a completeSuivi)
 'Version : 1.2.8
 ' BUG : Verifie l'existance des colonnes COPP_SAET et PPFV
 ' Embellissement :
@@ -49,13 +51,15 @@ Sub analyseFichier()
     Dim horaires_im() As String
     Dim compteur_dilh As Integer
     Dim compteur_dpt As Integer
+    Dim compteur_alim As Integer
+    Dim compteur_rel As Integer
     
     If analyseDefautDPTetDILH(jour, Quai, compteur_train, compteur_train_im, compteur_train_dilh1, compteur_train_dilh2, horaires_train, horaires_default_train, _
-        compteur_rapi, horaires_rapi, compteur_im, duree_im, horaires_im, compteur_dilh, compteur_dpt) _
+        compteur_rapi, horaires_rapi, compteur_im, duree_im, horaires_im, compteur_dilh, compteur_dpt, compteur_alim, compteur_rel) _
         <> 0 Then Exit Sub
     
     genereRapport compteur_train, compteur_train_im, compteur_train_dilh1, compteur_train_dilh2, horaires_train, horaires_default_train, _
-        compteur_rapi, horaires_rapi, compteur_im, duree_im, horaires_im, compteur_dilh, compteur_dpt
+        compteur_rapi, horaires_rapi, compteur_im, duree_im, horaires_im, compteur_dilh, compteur_dpt, compteur_alim, compteur_rel
     
     metForme
     
@@ -81,13 +85,15 @@ Sub completeSuivi()
     Dim horaires_im() As String
     Dim compteur_dilh As Integer
     Dim compteur_dpt As Integer
+    Dim compteur_alim As Integer
+    Dim compteur_rel As Integer
     
     If analyseDefautDPTetDILH(jour, Quai, compteur_train, compteur_train_im, compteur_train_dilh1, compteur_train_dilh2, horaires_train, horaires_default_train, _
-        compteur_rapi, horaires_rapi, compteur_im, duree_im, horaires_im, compteur_dilh, compteur_dpt) _
+        compteur_rapi, horaires_rapi, compteur_im, duree_im, horaires_im, compteur_dilh, compteur_dpt, compteur_alim, compteur_rel) _
         <> 0 Then Exit Sub
     
     genereRapport compteur_train, compteur_train_im, compteur_train_dilh1, compteur_train_dilh2, horaires_train, horaires_default_train, _
-        compteur_rapi, horaires_rapi, compteur_im, duree_im, horaires_im, compteur_dilh, compteur_dpt
+        compteur_rapi, horaires_rapi, compteur_im, duree_im, horaires_im, compteur_dilh, compteur_dpt, compteur_alim, compteur_rel
     
     
     ' Détection de la station à partir du nom de fichier
@@ -248,7 +254,7 @@ End Sub
 Function analyseDefautDPTetDILH(ByRef jour As Date, ByRef Quai As String, _
         ByRef compteur_train As Integer, ByRef compteur_train_im As Integer, ByRef compteur_train_dilh1 As Integer, ByRef compteur_train_dilh2 As Integer, ByRef horaires_train As String, ByRef horaires_default_train As String, _
         ByRef compteur_rapi As Integer, ByRef horaires_rapi As String, _
-        ByRef compteur_im As Integer, ByRef duree_im As Long, ByRef horaires_im() As String, ByRef compteur_dilh As Integer, ByRef compteur_dpt As Integer _
+        ByRef compteur_im As Integer, ByRef duree_im As Long, ByRef horaires_im() As String, ByRef compteur_dilh As Integer, ByRef compteur_dpt As Integer, ByRef compteur_alim As Integer, ByRef compteur_rel As Integer _
         ) As Integer
         
     Debug.Print
@@ -311,23 +317,36 @@ Function analyseDefautDPTetDILH(ByRef jour As Date, ByRef Quai As String, _
     prof_recherche = 100
     compteur_dilh = 0
     compteur_dpt = 0
+    compteur_alim = 0
+    compteur_rel = 0
     
     ' Acquisition du jour précédent l'analyse
     jour_precedent = DateSerial(Cells(i, C_Annee), Cells(i, C_Mois), Cells(i, C_Jour))
 
     If Cells(i, C_Heure) < 12 Then jour_precedent = jour_precedent - 1
-    ' Détection du nombre de PP
-    If getWordCol("Att_acq", 1, False) <> 0 Then
-        NbPP = getWordCol("Att_acq", 1, False) - C_PT_Confirme - 1
-    ElseIf getWordCol("E_Acq", 1, True) <> 0 Then
-        NbPP = getWordCol("E_Acq", 1, True) - C_PT_Confirme - 1
-    Else
-        NbPP = getWordCol("E_Def_DPT", 1, True) - C_PT_Confirme - 1
-    End If
     ' Détection colonne Def DTP
     C_Def_DPT = getWordCol("E_Def_DPT", 1, True)
     ' Détection colonne premier capteur laser
     C_SLG = getWordCol("DonneesRecCor", 1, True)
+    ' Détection du nombre de PP
+    NbPP = (getWordLastCol("DonneesRecCor", 1, True) + 3 - C_SLG + 1) / 12
+    'If getWordCol("Att_acq", 1, False) <> 0 Then
+    '    NbPP = getWordCol("Att_acq", 1, False) - C_PT_Confirme - 1
+    'ElseIf getWordCol("E_Acq", 1, True) <> 0 Then
+    '    NbPP = getWordCol("E_Acq", 1, True) - C_PT_Confirme - 1
+    'Else
+    '    NbPP = getWordCol("E_Def_DPT", 1, True) - C_PT_Confirme - 1
+    'End If
+    ' Détection colonne premier defaut alim
+    C_ALIM = getWordCol("Diag_Alim", 1, True)
+    ' Détection du nombre de capteur alim
+    NbALIM = getWordLastCol("Diag_Bat", 1, True) - C_ALIM + 1
+    ' Détection colonne premier defaut relais
+    C_REL = getWordCol("Defaut_Acq", 1, True)
+    ' Détection du nombre de capteur relais
+    NbREL = getWordLastCol("Defaut_Rel", 1, True) - C_REL + 1
+    
+    Debug.Print C_ALIM, NbALIM, C_REL, NbREL
     '
     'Boucle sur toutes les cellules de la colonne A
     'et on sort si on passe Heure_fin:Minute_fin de jour_precedent+2
@@ -433,6 +452,10 @@ Function analyseDefautDPTetDILH(ByRef jour As Date, ByRef Quai As String, _
                 ReDim PP_Def_DPT(0 To 2)
                 Dim PP_Def_DILH() As String
                 ReDim PP_Def_DILH(1 To NbPP * 9)
+                Dim PP_Def_ALIM() As String
+                ReDim PP_Def_ALIM(0 To NbALIM)
+                Dim PP_Def_REL() As String
+                ReDim PP_Def_REL(0 To NbREL)
                 'NbPP_Def = 0
             ElseIf valeur = 1 Then
 FinAnalyse:
@@ -458,6 +481,28 @@ FinAnalyse:
                         If d <> "" Then
                               If premier Then
                                 horaires_im(compteur_im) = horaires_im(compteur_im) & "    DILH : " & Chr(10)
+                                premier = False
+                            End If
+                            defaut = True
+                            horaires_im(compteur_im) = horaires_im(compteur_im) & "      - " & d & " ; " & Chr(10)
+                        End If
+                    Next d
+                    premier = True
+                    For Each d In PP_Def_ALIM
+                        If d <> "" Then
+                              If premier Then
+                                horaires_im(compteur_im) = horaires_im(compteur_im) & "    ALIM : " & Chr(10)
+                                premier = False
+                            End If
+                            defaut = True
+                            horaires_im(compteur_im) = horaires_im(compteur_im) & "      - " & d & " ; " & Chr(10)
+                        End If
+                    Next d
+                    premier = True
+                    For Each d In PP_Def_REL
+                        If d <> "" Then
+                              If premier Then
+                                horaires_im(compteur_im) = horaires_im(compteur_im) & "    RELAIS : " & Chr(10)
                                 premier = False
                             End If
                             defaut = True
@@ -513,7 +558,6 @@ FinAnalyse:
                             If PP_Def_DILH(dcpp) = "" Then
                                 PP_Def_DILH(dcpp) = Cells(1, C_PT_Confirme + pp) & " " & Cells(1, C_dcpp) & " (" & Cells(i, C_Heure) & ":" & Format(Cells(i, C_Minute), "00") & ")"
                                 compteur_dilh = compteur_dilh + 1
-                                Debug.Print pp, NbPP, compteur_dilh, PP_Def_DILH(dcpp)
                             End If
                         End If
                     Next d
@@ -528,6 +572,21 @@ FinAnalyse:
             ElseIf nb_capteur > 1 Then
                 compteur_train_dilh2 = compteur_train_dilh2 + nouveau_train
             End If
+            ' Defauts Alim
+            For c = 0 To NbALIM - 1
+                If (Cells(i, C_ALIM + c) = 0 And PP_Def_ALIM(c) = "") Then
+                    PP_Def_ALIM(c) = Cells(1, C_ALIM + c) & " (" & Cells(i, C_Heure) & ":" & Format(Cells(i, C_Minute), "00") & ")"
+                    compteur_alim = compteur_alim + 1
+                End If
+            Next c
+            ' Defauts Relais
+            For c = 0 To NbREL - 1
+                If (Cells(i, C_REL + c) = 1 And PP_Def_REL(c) = "") Then
+                    PP_Def_REL(c) = Cells(1, C_REL + c) & " (" & Cells(i, C_Heure) & ":" & Format(Cells(i, C_Minute), "00") & ")"
+                    compteur_rel = compteur_rel + 1
+                End If
+            Next c
+            ' Compteur trains avec IM
             compteur_train_im = compteur_train_im + nouveau_train
         End If
         'Memorise l'etat precedent
@@ -537,11 +596,13 @@ Nexti:
         'Incrémente la variable d'une unité afin de tester la cellule suivante
     Next i
     
+    Debug.Print compteur_alim, compteur_rel
+    
 End Function
 
 Sub genereRapport(compteur_train As Integer, compteur_train_im As Integer, compteur_train_dilh1 As Integer, compteur_train_dilh2 As Integer, horaires_train As String, horaires_default_train As String, _
         compteur_rapi As Integer, horaires_rapi As String, _
-        compteur_im As Integer, duree_im As Long, horaires_im() As String, compteur_dilh As Integer, compteur_dpt As Integer, _
+        compteur_im As Integer, duree_im As Long, horaires_im() As String, compteur_dilh As Integer, compteur_dpt As Integer, compteur_alim As Integer, compteur_rel As Integer, _
         Optional afficheRapport As Boolean = True)
         
     Rapport = _
@@ -565,6 +626,8 @@ Sub genereRapport(compteur_train As Integer, compteur_train_im As Integer, compt
     If compteur_im > 0 Then
         If compteur_dilh > 0 Then Rapport = Rapport & "    " & compteur_dilh & " défault laser." & Chr(10)
         If compteur_dpt > 0 Then Rapport = Rapport & "    " & compteur_dpt & " défault DPT." & Chr(10)
+        If compteur_alim > 0 Then Rapport = Rapport & "    " & compteur_alim & " défault d'alimentation." & Chr(10)
+        If compteur_rel > 0 Then Rapport = Rapport & "    " & compteur_rel & " défault de relai." & Chr(10)
         Rapport = Rapport & "  Horaires : " & Chr(10)
         For Each Line In horaires_im
             Rapport = Rapport & "  @ " & Line
@@ -650,6 +713,41 @@ Public Function getWordCol(ByVal sExpression As String, ByVal iLineNumber As Int
         For i = 1 To iColStop
             If Cells(iLineNumber, i) = sExpression Then
                 getWordCol = i
+                If bSelectResult Then Cells(iLineNumber, i).Select
+                Exit For
+            End If
+        Next i
+    End If
+End Function
+
+Public Function getWordLastCol(ByVal sExpression As String, ByVal iLineNumber As Integer, Optional ByVal bPartial As Boolean = False, Optional ByVal bSelectResult As Boolean = False, Optional vsSheetName As Variant) As Integer
+'   sExpression       mot(s) ou partie de mot à chercher
+'   iLineNumber      numero de la ligne dans laquelle chercher
+'   bPartial              choix sur le mot comlet ou partie du  mot
+'   bSelectResult     sélectionner la cellule de  la première occurence trouvée
+'   vsSheetName     nom de la feuille dans laquelle cherche, celle active par défaut
+'   RETURN              numéro de la colonne de la dernière occurence trouvée
+    Dim iColStop    As Integer
+    Dim i           As Integer
+
+    'selection  feuille
+    If Not IsMissing(vsSheetName) Then Sheets(vsSheetName).Select
+
+    'dernière cellule
+    iColStart = Range("iv1").End(xlToLeft).Column
+
+    If bPartial Then
+        For i = iColStart To 1 Step -1
+            If Cells(iLineNumber, i) Like "*" & sExpression & "*" Then
+                getWordLastCol = i
+                If bSelectResult Then Cells(iLineNumber, i).Select
+                Exit For
+            End If
+        Next i
+    Else
+        For i = iColStart To 1 Step -1
+            If Cells(iLineNumber, i) = sExpression Then
+                getWordLastCol = i
                 If bSelectResult Then Cells(iLineNumber, i).Select
                 Exit For
             End If
