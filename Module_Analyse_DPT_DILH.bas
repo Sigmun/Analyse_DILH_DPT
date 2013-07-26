@@ -2,6 +2,12 @@ Attribute VB_Name = "Module_Analyse_DPT_DILH"
 '=====================
 'Copyright 2013
 'Auteur  : Simon Verley
+'Version : 1.2.8
+' BUG : Verifie l'existance des colonnes COPP_SAET et PPFV
+' Embellissement :
+'              - Mise en forme de la colonne IFPP
+'              - Uniformisation des mises en forme des colonnes Diag et Defaut
+'              - Message d'arrivee en derniere ligne modifie
 'Version : 1.2.7
 ' Nouveautés : - comptage des passages de train sans PPFV ou COPP_SAET
 ' Embellissement :
@@ -160,10 +166,10 @@ Sub metForme()
 '
     ' le nom des tableaux suivant correspond a "Couleur si 0"+"Couleur si 1"
     VertGris = Array("PPFV*", "E_PT_MP05*", "PT_Confirme*")
-    GrisVert = Array("E_PT_MP89*", "E_Acq_MES*", "E_Acq_PP*", "Redém_API", "COPP_SAET")
-    GrisRouge = Array("SLG_PP*", "SLC_PP*", "SLD_PP*", "E_DILF_SL*", "UTG*", "UTC*", "UTD*", "*.Defaut_Dyna", "*.Defaut_SurfRef", "*.Incoherent", "Dyn*_DF*", "SF*_DF*", "DFQ*_SL*")
-    RougeGris = Array("UTH*")
-    RougeVert = Array("Info_Maint", "E_Def_DPT*", "Diag_Tapis*", "*.DonneesRecCor")
+    GrisVert = Array("E_PT_MP89*", "E_Acq_*", "E_Acq_*", "Redém_API", "COPP_SAET")
+    GrisRouge = Array("SLG_PP*", "SLC_PP*", "SLD_PP*", "E_DILF_SL*", "UTG*", "UTC*", "UTD*", "*.Defaut_Dyna", "*.Defaut_SurfRef", "*.Incoherent", "Dyn*_DF*", "SF*_DF*", "DFQ*_SL*", "Defaut_*")
+    RougeGris = Array("UTH*", "Att_acq")
+    RougeVert = Array("Info_Maint", "E_Def_DPT*", "Diag_*", "*.DonneesRecCor", "IFPP_*")
     
     C_PT_Confirme = getWordCol("PT_Confirme", 1, True) '10
     If C_PT_Confirme = 0 Then
@@ -171,9 +177,11 @@ Sub metForme()
         Exit Sub
     End If
     C_PPFV = getWordCol("PPFV", 1, True)
-    C_Acq = getWordCol("E_Acq", 1, True)
-    If C_Acq <> 0 Then
-        NbPP = C_Acq - C_PT_Confirme - 1
+    ' Détection du nombre de PP
+    If getWordCol("Att_acq", 1, False) <> 0 Then
+        NbPP = getWordCol("Att_acq", 1, False) - C_PT_Confirme - 1
+    ElseIf getWordCol("E_Acq", 1, True) <> 0 Then
+        NbPP = getWordCol("E_Acq", 1, True) - C_PT_Confirme - 1
     Else
         NbPP = getWordCol("E_Def_DPT", 1, True) - C_PT_Confirme - 1
     End If
@@ -309,9 +317,10 @@ Function analyseDefautDPTetDILH(ByRef jour As Date, ByRef Quai As String, _
 
     If Cells(i, C_Heure) < 12 Then jour_precedent = jour_precedent - 1
     ' Détection du nombre de PP
-    C_Acq = getWordCol("E_Acq", 1, True)
-    If C_Acq <> 0 Then
-        NbPP = C_Acq - C_PT_Confirme - 1
+    If getWordCol("Att_acq", 1, False) <> 0 Then
+        NbPP = getWordCol("Att_acq", 1, False) - C_PT_Confirme - 1
+    ElseIf getWordCol("E_Acq", 1, True) <> 0 Then
+        NbPP = getWordCol("E_Acq", 1, True) - C_PT_Confirme - 1
     Else
         NbPP = getWordCol("E_Def_DPT", 1, True) - C_PT_Confirme - 1
     End If
@@ -339,8 +348,11 @@ Function analyseDefautDPTetDILH(ByRef jour As Date, ByRef Quai As String, _
             Firsti = i
         End If
         If (jour = jour_precedent + 2 And Cells(i + 1, C_Heure) * 60 + Cells(i + 1, C_Minute) > Heure_fin * 60 + Minute_fin) Or i = NbLignes Then
-            If i = NbLignes Then MsgBox "Le fichier est trop long pour une analyse complete." & Chr(10) _
-              & "Veuillez effacer les lignes de 2 à " & Firsti & " en dehors d'Excel (via Bloc-notes par exemple) et relancer l'analyse ensuite."
+            If i = NbLignes Then MsgBox "La macro a atteint la derniere ligne du fichier. Deux raisons peuvent à l'origine de ce message : " & Chr(10) _
+              & "- Le fichier de log se termine avant l'heure de fin d'analyse :" & Chr(10) _
+              & "    > Vérifiez que la dernière ligne du log correspond à l'horaire " & last_horaire_train & Chr(10) _
+              & "- Le fichier est trop long pour une analyse complète." & Chr(10) _
+              & "    > Veuillez effacer les lignes de 2 à " & Firsti & " en dehors d'Excel (via Bloc-notes par exemple) et relancer l'analyse ensuite."
             If Not Lasti Then
                 Lasti = True
                 horaires_train = horaires_train & " à " & last_horaire_train
@@ -358,8 +370,6 @@ Function analyseDefautDPTetDILH(ByRef jour As Date, ByRef Quai As String, _
         If valeur <> last_train Then
            'Test si descendant
             If valeur = 0 Then
-                If compteur_train < 5 Or compteur_train > 250 Then _
-                  Debug.Print i, Format(TimeSerial(Cells(i, C_Heure), Cells(i, C_Minute), CInt(Cells(i, C_Seconde))), "hh:mm:ss"), compteur_train
                 nouveau_train = 1
                 last_horaire_train = Format(TimeSerial(Cells(i, C_Heure), Cells(i, C_Minute), CInt(Cells(i, C_Seconde))), "hh:mm:ss")
                 If compteur_train = 0 Then horaires_train = " de " & last_horaire_train
@@ -377,10 +387,18 @@ Function analyseDefautDPTetDILH(ByRef jour As Date, ByRef Quai As String, _
         'Memorise l'etat precedent
         last_train = valeur
         compteur_train = compteur_train + nouveau_train
-        'Verification de coherence PPFV / COPP_SAET avec PT_confirm
+        'Verification si possible de coherence PPFV / COPP_SAET avec PT_confirm
         If valeur = 0 Then
-            If Cells(i, C_PPFV) = 0 Then flag_ppfv = True
-            If Cells(i, C_COPP) = 1 Then flag_copp = True
+            If C_PPFV = 0 Then
+                flag_ppfv = True
+            ElseIf Cells(i, C_PPFV) = 0 Then
+                flag_ppfv = True
+            End If
+            If C_COPP = 0 Then
+                flag_copp = True
+            ElseIf Cells(i, C_COPP) = 1 Then
+                flag_copp = True
+            End If
         End If
         '
         'Compteur redem API
@@ -495,6 +513,7 @@ FinAnalyse:
                             If PP_Def_DILH(dcpp) = "" Then
                                 PP_Def_DILH(dcpp) = Cells(1, C_PT_Confirme + pp) & " " & Cells(1, C_dcpp) & " (" & Cells(i, C_Heure) & ":" & Format(Cells(i, C_Minute), "00") & ")"
                                 compteur_dilh = compteur_dilh + 1
+                                Debug.Print pp, NbPP, compteur_dilh, PP_Def_DILH(dcpp)
                             End If
                         End If
                     Next d
