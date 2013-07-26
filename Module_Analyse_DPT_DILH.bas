@@ -2,6 +2,10 @@ Attribute VB_Name = "Module_Analyse_DPT_DILH"
 '=====================
 'Copyright 2013
 'Auteur  : Simon Verley
+'Version : 1.2.6
+' BUG : le filtrage des default DTP < 1.2s est encore amélioré
+' Nouveautés : - comptage des défaults dilh et dpt séparé et report dans Suivi défault DIL.xls
+'              - remplissage du Suivi défault DIL.xls plus complet
 'Version : 1.2.5
 ' Nouveautés : - traiteFichier devient completeSuivi
 '              - macro de mise en forme automatique et conditionnelle
@@ -29,13 +33,15 @@ Sub analyseFichier()
     Dim compteur_im As Integer
     Dim duree_im As Long
     Dim horaires_im() As String
+    Dim compteur_dilh As Integer
+    Dim compteur_dpt As Integer
     
     If analyseDefautDPTetDILH(jour, Quai, compteur_train, compteur_train_im, compteur_train_dilh1, compteur_train_dilh2, horaires_train, _
-        compteur_rapi, horaires_rapi, compteur_im, duree_im, horaires_im) _
+        compteur_rapi, horaires_rapi, compteur_im, duree_im, horaires_im, compteur_dilh, compteur_dpt) _
         <> 0 Then Exit Sub
     
     genereRapport compteur_train, compteur_train_im, compteur_train_dilh1, compteur_train_dilh2, horaires_train, _
-        compteur_rapi, horaires_rapi, compteur_im, duree_im, horaires_im
+        compteur_rapi, horaires_rapi, compteur_im, duree_im, horaires_im, compteur_dilh, compteur_dpt
     
     metForme
     
@@ -58,25 +64,27 @@ Sub completeSuivi()
     Dim compteur_im As Integer
     Dim duree_im As Long
     Dim horaires_im() As String
+    Dim compteur_dilh As Integer
+    Dim compteur_dpt As Integer
     
     If analyseDefautDPTetDILH(jour, Quai, compteur_train, compteur_train_im, compteur_train_dilh1, compteur_train_dilh2, horaires_train, _
-        compteur_rapi, horaires_rapi, compteur_im, duree_im, horaires_im) _
+        compteur_rapi, horaires_rapi, compteur_im, duree_im, horaires_im, compteur_dilh, compteur_dpt) _
         <> 0 Then Exit Sub
     
     genereRapport compteur_train, compteur_train_im, compteur_train_dilh1, compteur_train_dilh2, horaires_train, _
-        compteur_rapi, horaires_rapi, compteur_im, duree_im, horaires_im
+        compteur_rapi, horaires_rapi, compteur_im, duree_im, horaires_im, compteur_dilh, compteur_dpt
     
     
     ' Détection de la station à partir du nom de fichier
-    If InStr(ActiveWorkbook.Name, "BAST") > 0 Or InStr(ActiveWorkbook.Name, "Bastille") > 0 Then
-        Station = "Bastille"
-    ElseIf InStr(ActiveWorkbook.Name, "NATN") > 0 Or InStr(ActiveWorkbook.Name, "Nation") > 0 Then
-        Station = "Nation"
-    ElseIf InStr(ActiveWorkbook.Name, "CHGE") > 0 Or InStr(ActiveWorkbook.Name, "Etoile") > 0 Then
-        Station = "Etoile"
+    If InStr(ActiveWorkbook.Name, "BAST") > 0 Or InStr(ActiveWorkbook.Name, "BASTILLE") > 0 Or InStr(ActiveWorkbook.Name, "Bastille") > 0 Then
+        Station = "BASTILLE"
+    ElseIf InStr(ActiveWorkbook.Name, "NATN") > 0 Or InStr(ActiveWorkbook.Name, "NATION") > 0 Or InStr(ActiveWorkbook.Name, "Nation") > 0 Then
+        Station = "NATION"
+    ElseIf InStr(ActiveWorkbook.Name, "CHGE") > 0 Or InStr(ActiveWorkbook.Name, "ETOILE") > 0 Or InStr(ActiveWorkbook.Name, "Etoile") > 0 Then
+        Station = "ETOILE"
     Else
         MsgBox "Le nom de la station n'a pas pu être extrait du nom du fichier de donnée."
-        Exit Sub
+        'Exit Sub
     End If
         
     
@@ -84,14 +92,14 @@ Sub completeSuivi()
     
     On Error GoTo ErrHandler:
         Windows(Fichier_suivi).Activate
-        Worksheets(Station).Activate
 ErrHandler:
+    MsgBox Err.Number
     If Err.Number = 9 Then
         test = MsgBox(Prompt:="Le fichier de suivi est-il déjà ouvert ?", _
             Buttons:=vbYesNoCancel, Title:="Fichier de suivi")
         If test = vbYes Then
             Fichier_suivi = InputBox(Prompt:="Veuiller entrer le nom du fichier de suivi :", _
-          Title:="Fichier de suivi", Default:="Suivi Défaut DIL.xls")
+          Title:="Fichier de suivi", Default:="Suivi défaut DIL.xls")
         ElseIf test = vbNo Then
             Fichier_suivi = Application.GetOpenFilename _
              (FileFilter:="Fichier de suivi (*.xls),*.xls,Tout type (*.*),*.*", _
@@ -102,8 +110,17 @@ ErrHandler:
             Exit Sub
         End If
         Resume Next
-    Else
-        Exit Sub
+    End If
+
+    On Error GoTo StationErrHandler:
+        Worksheets(Station).Activate
+StationErrHandler:
+    MsgBox Err.Number
+    If Err.Number = 9 Then
+        Station = InputBox(Prompt:="La feuille '" & Station & "' n'a pas pu être trouvée dans le fichier " & Fichier_suivi & Chr(10) _
+          & "Veuiller entrer le nom de la feuille correspondante à la station analysée :", _
+          Title:="Nom de la station", Default:=Station)
+        Resume Next
     End If
     
     C_Date = getWordCol(jour, 1)
@@ -118,7 +135,9 @@ ErrHandler:
         Exit Sub
     End If
     Cells(L_Quai + 1, C_Date) = compteur_im
-    Cells(L_Quai + 2, C_Date) = SecondsToDate(duree_im&)
+    Cells(L_Quai + 2, C_Date) = Format(SecondsToDate(duree_im&), "hh:mm")
+    Cells(L_Quai + 3, C_Date) = compteur_dilh
+    Cells(L_Quai + 4, C_Date) = compteur_dpt
     'Cells(L_Quai + 8, C_Date) = compteur_im
     Cells(L_Quai + 9, C_Date) = compteur_rapi
     'C_Date = getWordCol(
@@ -212,7 +231,7 @@ End Sub
 Function analyseDefautDPTetDILH(ByRef jour As Date, ByRef Quai As String, _
         ByRef compteur_train As Integer, ByRef compteur_train_im As Integer, ByRef compteur_train_dilh1 As Integer, ByRef compteur_train_dilh2 As Integer, ByRef horaires_train As String, _
         ByRef compteur_rapi As Integer, ByRef horaires_rapi As String, _
-        ByRef compteur_im As Integer, ByRef duree_im As Long, ByRef horaires_im() As String _
+        ByRef compteur_im As Integer, ByRef duree_im As Long, ByRef horaires_im() As String, ByRef compteur_dilh As Integer, ByRef compteur_dpt As Integer _
         ) As Integer
         
     Debug.Print
@@ -269,6 +288,8 @@ Function analyseDefautDPTetDILH(ByRef jour As Date, ByRef Quai As String, _
     duree_im = 0
     analyse_im = False
     prof_recherche = 100
+    compteur_dilh = 0
+    compteur_dpt = 0
     
     ' Acquisition du jour précédent l'analyse
     jour_precedent = DateSerial(Cells(i, C_Annee), Cells(i, C_Mois), Cells(i, C_Jour))
@@ -416,11 +437,13 @@ FinAnalyse:
                     For j = 1 To prof_recherche
                         jour_suivant = DateSerial(Cells(i + j, C_Annee), Cells(i + j, C_Mois), Cells(i + j, C_Jour))
                         heure_suivante = jour_suivant * 24 * 3600 + Cells(i + j, C_Heure) * 3600 + Cells(i + j, C_Minute) * 60 + Cells(i + j, C_Seconde)
-                        If heure_suivante - heure > 1.2 Or heure_suivante = 0 Or j = prof_recherche Then
-                            PP_Def_DPT(c) = Cells(1, C_Def_DPT + c) & " (" & Cells(i, C_Heure) & ":" & Format(Cells(i, C_Minute), "00") & ")"
+                        If (heure_suivante - heure > 1.2 Or heure_suivante = 0 Or j = prof_recherche) And Cells(i + j, C_Def_DPT + c) = 0 Then
+                            compteur_dpt = compteur_dpt + 1
+                            PP_Def_DPT(c) = Cells(1, C_Def_DPT + c) & " (" & Cells(i, C_Heure) & ":" & Format(Cells(i, C_Minute), "00") & " pdt " & CInt(heure_suivante - heure) & "s)"
+                            Exit For
+                        ElseIf Cells(i + j, C_Def_DPT + c) = 1 Then
                             Exit For
                         End If
-                        If Cells(i + j, C_Def_DPT + c) = 1 Then Exit For
                     Next j
                 End If
             Next c
@@ -435,10 +458,15 @@ FinAnalyse:
                         C_dcpp = C_SLG + (pp - 1) * 12 + (c - 1) * 4 + d
                         If Cells(i, C_dcpp) = 1 Then
                             def_capteur = True
-                            If PP_Def_DILH(dcpp) = "" Then PP_Def_DILH(dcpp) = Cells(1, C_PT_Confirme + pp) & " " & Cells(1, C_dcpp) & " (" & Cells(i, C_Heure) & ":" & Format(Cells(i, C_Minute), "00") & ")"
+                            If PP_Def_DILH(dcpp) = "" Then
+                                PP_Def_DILH(dcpp) = Cells(1, C_PT_Confirme + pp) & " " & Cells(1, C_dcpp) & " (" & Cells(i, C_Heure) & ":" & Format(Cells(i, C_Minute), "00") & ")"
+                                compteur_dilh = compteur_dilh + 1
+                            End If
                         End If
                     Next d
-                    If def_capteur Then nb_capteur_pp = nb_capteur_pp + 1
+                    If def_capteur Then
+                        nb_capteur_pp = nb_capteur_pp + 1
+                    End If
                 Next c
                 nb_capteur = WorksheetFunction.Max(nb_capteur, nb_capteur_pp)
             Next pp
@@ -460,7 +488,7 @@ End Function
 
 Sub genereRapport(compteur_train As Integer, compteur_train_im As Integer, compteur_train_dilh1 As Integer, compteur_train_dilh2 As Integer, horaires_train As String, _
         compteur_rapi As Integer, horaires_rapi As String, _
-        compteur_im As Integer, duree_im As Long, horaires_im() As String, _
+        compteur_im As Integer, duree_im As Long, horaires_im() As String, compteur_dilh As Integer, compteur_dpt As Integer, _
         Optional afficheRapport As Boolean = True)
         
     Rapport = _
@@ -480,6 +508,8 @@ Sub genereRapport(compteur_train As Integer, compteur_train_im As Integer, compt
            "Info Maintenance : " & Chr(10) & _
            "  " & compteur_im & " Info Maintenance pour une durée de " & TimeString(CLng(duree_im)) & "." & Chr(10)
     If compteur_im > 0 Then
+        If compteur_dilh > 0 Then Rapport = Rapport & "    " & compteur_dilh & " défault laser." & Chr(10)
+        If compteur_dpt > 0 Then Rapport = Rapport & "    " & compteur_dpt & " défault DPT." & Chr(10)
         Rapport = Rapport & "  Horaires : " & Chr(10)
         For Each Line In horaires_im
             Rapport = Rapport & "  @ " & Line
