@@ -2,9 +2,14 @@ Attribute VB_Name = "Module_Analyse_DPT_DILH"
 '-------------------------------------------
 'Copyright 2013
 'Auteur : Simon Verley
-'Version : 1.1.6
+'Version : 1.1.9
 
 Sub analyseDefautDPTetDILH()
+    ' Détection de la station à partir du nom de fichier
+    'Dim monTab() As String
+    Station = Split(ActiveWorkbook.Name, "_")(0)
+    'Station = monTab(0)
+
     Debug.Print
     Debug.Print "================================"
     Debug.Print "Lancement analyseDefautDPTetDILH"
@@ -32,6 +37,10 @@ Sub analyseDefautDPTetDILH()
         MsgBox "Ce fichier n'est pas compatible. (" & ActiveWorkbook.FullName & ")"
         Exit Sub
     End If
+    'Dim monTab() As String
+    'monTab = Split(Cells(1, C_PT_Confirme), "_")
+    Quai = Split(Cells(1, C_PT_Confirme), "_")(UBound(Split(Cells(1, C_PT_Confirme), "_")))
+    Debug.Print Station & Quai
     C_Train = C_PT_Confirme
     C_rapi = getWordCol("Redém_API", 1, True) '20  'RAPI
     C_IM = getWordCol("Info_Maint", 1, True) '21  'IM
@@ -172,9 +181,15 @@ Sub analyseDefautDPTetDILH()
                         horaires_im(compteur_im) = horaires_im(compteur_im) & "      - " & d & " ; " & Chr(10)
                     End If
                 Next d
-                If Not defaut Then horaires_im(compteur_im) = horaires_im(compteur_im) & "      Aucun défaut détecté (Redémarrage API ?)" & Chr(10)
+                If Not defaut Then
+                    'horaires_im(compteur_im) = horaires_im(compteur_im) & "      Aucun défaut détecté (Redémarrage API ?)" & Chr(10)
+                    compteur_im = compteur_im - 1
+                    ReDim Preserve horaires_im(1 To compteur_im)
+                    duree_im = duree_im - t_fin_im + t_deb_im
+                Else
                 'Debug.Print "<<<<<<<<<<<<<<<<<<<<<<"
-                horaires_im(compteur_im) = horaires_im(compteur_im) & Chr(10)
+                    horaires_im(compteur_im) = horaires_im(compteur_im) & Chr(10)
+                End If
             Else
                 analyse_im = False
             End If
@@ -289,7 +304,19 @@ Line1:
 
     'commande Pour XP, pour W7 cherchez le chemin
     Shell "C:\WINDOWS\explorer.exe " & Fichier_sortie
-
+    
+    Windows("Suivi défaut DIL.xls").Activate
+    Worksheets(Station).Activate
+    C_Date = getWordCol(jour, 1)
+    nb_lignes_quai = 44
+    L_Quai = getWordLine(Quai, 1)
+    Cells(L_Quai + 1, C_Date) = compteur_im
+    'Cells(L_Quai + 2, C_Date) = SecondsToDate(CLng(duree_im))
+    'Cells(L_Quai + 8, C_Date) = compteur_im
+    Cells(L_Quai + 9, C_Date) = compteur_rapi
+    'C_Date = getWordCol(
+    'Range("A1") = Rapport
+    
 End Sub
 
 '-----------------------------------------------------
@@ -329,6 +356,41 @@ Public Function getWordCol(ByVal sExpression As String, ByVal iLineNumber As Int
     End If
 End Function
 
+Public Function getWordLine(ByVal sExpression As String, ByVal iColNumber As Integer, Optional ByVal bPartial As Boolean = False, Optional ByVal bSelectResult As Boolean = False, Optional vsSheetName As Variant) As Integer
+'   sExpression       mot(s) ou partie de mot à chercher
+'   iColNumber      numero de la colonne dans laquelle chercher
+'   bPartial              choix sur le mot comlet ou partie du  mot
+'   bSelectResult     sélectionner la cellule de  la première occurence trouvée
+'   vsSheetName     nom de la feuille dans laquelle cherche, celle active par défaut
+'   RETURN              numéro de la colonne de la première occurence trouvée
+    Dim iLineStop    As Integer
+    Dim i           As Integer
+
+    'selection  feuille
+    If Not IsMissing(vsSheetName) Then Sheets(vsSheetName).Select
+
+    'dernière cellule
+    iLineStop = Range("A65536").End(xlUp).Row
+    
+    If bPartial Then
+        For i = 1 To iLineStop
+            If Cells(i, iColNumber) Like "*" & sExpression & "*" Then
+                getWordLine = i
+                If bSelectResult Then Cells(i, iColNumber).Select
+                Exit For
+            End If
+        Next i
+    Else
+        For i = 1 To iLineStop
+            If Cells(i, iColNumber) = sExpression Then
+                getWordLine = i
+                If bSelectResult Then Cells(i, iColNumber).Select
+                Exit For
+            End If
+        Next i
+    End If
+End Function
+
 Public Function TimeString(Secondes As Long) As String
 
     Dim nb_heure As Long
@@ -340,6 +402,23 @@ Public Function TimeString(Secondes As Long) As String
     nb_seconde = CInt(Secondes - nb_heure * 3600 - nb_minute * 60)
 
     TimeString = nb_heure & "h" & nb_minute & "m" & nb_seconde & "s"
+    'MsgBox TimeString
+    'TimeString = Format(TimeValue(TimeString), Fmt)
+
+End Function
+
+
+Public Function SecondsToDate(Secondes As Long) As Date
+
+    Dim nb_heure As Long
+    Dim nb_minute As Integer
+    Dim nb_seconde As Integer
+
+    nb_heure = CLng(Secondes / 3600 - 0.5)
+    nb_minute = CInt((Secondes - nb_heure * 3600) / 60 - 0.5)
+    nb_seconde = CInt(Secondes - nb_heure * 3600 - nb_minute * 60)
+
+    TimeString = nb_heure & ":" & nb_minute & ":" & nb_seconde & "s"
     'MsgBox TimeString
     'TimeString = Format(TimeValue(TimeString), Fmt)
 
