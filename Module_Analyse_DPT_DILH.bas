@@ -1,14 +1,90 @@
 Attribute VB_Name = "Module_Analyse_DPT_DILH"
-'-------------------------------------------
+'=====================
 'Copyright 2013
-'Auteur : Simon Verley
-'Version : 1.1.9
+'Auteur  : Simon Verley
+'Version : 1.2
+'=====================
+
+Sub analyseFichier()
+'   --------------
+    Dim jour As Date
+    Dim Station As String
+    Dim Quai As String
+    Dim compteur_train As Integer
+    Dim compteur_train_im As Integer
+    Dim compteur_train_dilh1 As Integer
+    Dim compteur_train_dilh2 As Integer
+    Dim compteur_rapi As Integer
+    Dim horaires_rapi As String
+    Dim compteur_im As Integer
+    Dim duree_im As Long
+    Dim horaires_im() As String
+    
+    If analyseDefautDPTetDILH(jour, Quai, compteur_train, compteur_train_im, compteur_train_dilh1, compteur_train_dilh2, _
+        compteur_rapi, horaires_rapi, compteur_im, duree_im, horaires_im) _
+        <> 0 Then Exit Sub
+    
+    genereRapport compteur_train, compteur_train_im, compteur_train_dilh1, compteur_train_dilh2, _
+        compteur_rapi, horaires_rapi, compteur_im, duree_im, horaires_im
+    
+    MsgBox "Le rapport d'analyse du fichier " & ActiveWorkbook.FullName & " a été généré (suffixe '_Analyse.txt adjoint')."
+End Sub
+
+Sub traiteFichier()
+'    ------------
+    Dim jour As Date
+    Dim Station As String
+    Dim Quai As String
+    Dim compteur_train As Integer
+    Dim compteur_train_im As Integer
+    Dim compteur_train_dilh1 As Integer
+    Dim compteur_train_dilh2 As Integer
+    Dim compteur_rapi As Integer
+    Dim horaires_rapi As String
+    Dim compteur_im As Integer
+    Dim duree_im As Long
+    Dim horaires_im() As String
+    
+    If analyseDefautDPTetDILH(jour, Quai, compteur_train, compteur_train_im, compteur_train_dilh1, compteur_train_dilh2, _
+        compteur_rapi, horaires_rapi, compteur_im, duree_im, horaires_im) _
+        <> 0 Then Exit Sub
+    
+    genereRapport compteur_train, compteur_train_im, compteur_train_dilh1, compteur_train_dilh2, _
+        compteur_rapi, horaires_rapi, compteur_im, duree_im, horaires_im
+    
+    
+    ' Détection de la station à partir du nom de fichier
+    Station = Split(ActiveWorkbook.Name, "_")(0)
+    
+    Fichier_suivi = "Suivi défaut DIL.xls"
+    Windows(Fichier_suivi).Activate
+    Worksheets(Station).Activate
+    C_Date = getWordCol(jour, 1)
+    If C_Date = 0 Then
+        MsgBox "La date " & jour & " n'a pas été trouvée dans le fichier " & Fichier_suivi
+        Exit Sub
+    End If
+    nb_lignes_quai = 44
+    L_Quai = getWordLine(Quai, 1)
+    If L_Quai = 0 Then
+        MsgBox "Le quai " & Quai & " n'a pas été trouvé dans le fichier " & Fichier_suivi
+        Exit Sub
+    End If
+    Cells(L_Quai + 1, C_Date) = compteur_im
+    Cells(L_Quai + 2, C_Date) = SecondsToDate(duree_im&)
+    'Cells(L_Quai + 8, C_Date) = compteur_im
+    Cells(L_Quai + 9, C_Date) = compteur_rapi
+    'C_Date = getWordCol(
+    'Range("A1") = Rapport
+End Sub
+
+'====================================================================================================================
 
 Function analyseDefautDPTetDILH(ByRef jour As Date, ByRef Quai As String, _
         ByRef compteur_train As Integer, ByRef compteur_train_im As Integer, ByRef compteur_train_dilh1 As Integer, ByRef compteur_train_dilh2 As Integer, _
         ByRef compteur_rapi As Integer, ByRef horaires_rapi As String, _
         ByRef compteur_im As Integer, ByRef duree_im As Long, ByRef horaires_im() As String _
-        )
+        ) As Integer
         
     Debug.Print
     Debug.Print "================================"
@@ -29,6 +105,7 @@ Function analyseDefautDPTetDILH(ByRef jour As Date, ByRef Quai As String, _
 
     C_PT_Confirme = getWordCol("PT_Confirme", 1, True) '10
     If C_PT_Confirme = 0 Then
+        analyseDefautDPTetDILH = 1
         MsgBox "Ce fichier n'est pas compatible. (" & ActiveWorkbook.FullName & ")"
         Exit Function
     End If
@@ -222,8 +299,8 @@ End Function
 
 Sub genereRapport(compteur_train As Integer, compteur_train_im As Integer, compteur_train_dilh1 As Integer, compteur_train_dilh2 As Integer, _
         compteur_rapi As Integer, horaires_rapi As String, _
-        compteur_im As Integer, duree_im As Long, horaires_im() As String _
-        )
+        compteur_im As Integer, duree_im As Long, horaires_im() As String , _
+        Optional afficheRapport As Boolean = True)
         
     Rapport = _
            " Rapport d'analyse du fichier : " & ActiveWorkbook.FullName & Chr(10) & Chr(10) & _
@@ -281,69 +358,9 @@ Sub genereRapport(compteur_train As Integer, compteur_train_im As Integer, compt
     'MsgBox "Le rapport d'analyse a été généré dans le fichier " & Fichier_sortie '& " dans Mes Documents"
 
     'commande de lancement de IE
-    Shell "C:\WINDOWS\explorer.exe " & Fichier_sortie
+    If afficheRapport Then Shell "C:\WINDOWS\explorer.exe " & Fichier_sortie
     
 End Sub
-
-Sub analyseFichier()
-    Dim jour As Date
-    Dim Station As String
-    Dim Quai As String
-    Dim compteur_train As Integer
-    Dim compteur_train_im As Integer
-    Dim compteur_train_dilh1 As Integer
-    Dim compteur_train_dilh2 As Integer
-    Dim compteur_rapi As Integer
-    Dim horaires_rapi As String
-    Dim compteur_im As Integer
-    Dim duree_im As Long
-    Dim horaires_im() As String
-    
-    analyseDefautDPTetDILH jour, Quai, compteur_train, compteur_train_im, compteur_train_dilh1, compteur_train_dilh2, _
-        compteur_rapi, horaires_rapi, compteur_im, duree_im, horaires_im
-    
-    genereRapport compteur_train, compteur_train_im, compteur_train_dilh1, compteur_train_dilh2, _
-        compteur_rapi, horaires_rapi, compteur_im, duree_im, horaires_im
-End Sub
-
-Sub traiteFichier()
-    Dim jour As Date
-    Dim Station As String
-    Dim Quai As String
-    Dim compteur_train As Integer
-    Dim compteur_train_im As Integer
-    Dim compteur_train_dilh1 As Integer
-    Dim compteur_train_dilh2 As Integer
-    Dim compteur_rapi As Integer
-    Dim horaires_rapi As String
-    Dim compteur_im As Integer
-    Dim duree_im As Long
-    Dim horaires_im() As String
-    
-    analyseDefautDPTetDILH jour, Quai, compteur_train, compteur_train_im, compteur_train_dilh1, compteur_train_dilh2, _
-        compteur_rapi, horaires_rapi, compteur_im, duree_im, horaires_im
-    
-    genereRapport compteur_train, compteur_train_im, compteur_train_dilh1, compteur_train_dilh2, _
-        compteur_rapi, horaires_rapi, compteur_im, duree_im, horaires_im
-    
-    
-    ' Détection de la station à partir du nom de fichier
-    Station = Split(ActiveWorkbook.Name, "_")(0)
-    
-    Windows("Suivi défaut DIL.xls").Activate
-    Worksheets(Station).Activate
-    C_Date = getWordCol(jour, 1)
-    nb_lignes_quai = 44
-    L_Quai = getWordLine(Quai, 1)
-    Cells(L_Quai + 1, C_Date) = compteur_im
-    'Cells(L_Quai + 2, C_Date) = SecondsToDate(CLng(duree_im))
-    'Cells(L_Quai + 8, C_Date) = compteur_im
-    Cells(L_Quai + 9, C_Date) = compteur_rapi
-    'C_Date = getWordCol(
-    'Range("A1") = Rapport
-End Sub
-
-'-----------------------------------------------------
 
 Public Function getWordCol(ByVal sExpression As String, ByVal iLineNumber As Integer, Optional ByVal bPartial As Boolean = False, Optional ByVal bSelectResult As Boolean = False, Optional vsSheetName As Variant) As Integer
 '   sExpression       mot(s) ou partie de mot à chercher
@@ -431,8 +448,7 @@ Public Function TimeString(Secondes As Long) As String
 
 End Function
 
-
-Public Function SecondsToDate(Secondes As Long) As Date
+Public Function SecondsToDate(Secondes As Long, Optional Fmt As String = "hh:mm:ss") As Date
 
     Dim nb_heure As Long
     Dim nb_minute As Integer
@@ -442,11 +458,8 @@ Public Function SecondsToDate(Secondes As Long) As Date
     nb_minute = CInt((Secondes - nb_heure * 3600) / 60 - 0.5)
     nb_seconde = CInt(Secondes - nb_heure * 3600 - nb_minute * 60)
 
-    TimeString = nb_heure & ":" & nb_minute & ":" & nb_seconde & "s"
-    'MsgBox TimeString
-    'TimeString = Format(TimeValue(TimeString), Fmt)
+    SecondsToDate = Format(TimeValue(nb_heure & ":" & nb_minute & ":" & nb_seconde), Fmt)
 
 End Function
-
 
 
