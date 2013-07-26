@@ -55,17 +55,44 @@ Sub traiteFichier()
     
     
     ' Détection de la station à partir du nom de fichier
-    Station = Split(ActiveWorkbook.Name, "_")(0)
-    
-    If Split(ActiveWorkbook.Name, ".")(0) = "Log_DIL-DAME-BAST" _
-    Or Split(ActiveWorkbook.Name, "_")(0) = "Bastille" Then
+    If InStr(ActiveWorkbook.Name, "BAST") > 0 Or InStr(ActiveWorkbook.Name, "Bastille") > 0 Then
         Station = "Bastille"
+    ElseIf InStr(ActiveWorkbook.Name, "NATN") > 0 Or InStr(ActiveWorkbook.Name, "Nation") > 0 Then
+        Station = "Nation"
+    ElseIf InStr(ActiveWorkbook.Name, "CHGE") > 0 Or InStr(ActiveWorkbook.Name, "Etoile") > 0 Then
+        Station = "Etoile"
+    Else
+        MsgBox "Le nom de la station n'a pas pu être extrait du nom du fichier de donnée."
+        Exit Sub
     End If
         
     
     Fichier_suivi = "Suivi défaut DIL.xls"
-    Windows(Fichier_suivi).Activate
-    Worksheets(Station).Activate
+    
+    On Error GoTo ErrHandler:
+        Windows(Fichier_suivi).Activate
+        Worksheets(Station).Activate
+ErrHandler:
+    If Err.Number = 9 Then
+        test = MsgBox(Prompt:="Le fichier de suivi est-il déjà ouvert ?", _
+            Buttons:=vbYesNoCancel, Title:="Fichier de suivi")
+        If test = vbYes Then
+            Fichier_suivi = InputBox(Prompt:="Veuiller entrer le nom du fichier de suivi :", _
+          Title:="Fichier de suivi", Default:="Suivi Défaut DIL.xls")
+        ElseIf test = vbNo Then
+            Fichier_suivi = Application.GetOpenFilename _
+             (FileFilter:="Fichier de suivi (*.xls),*.xls,Tout type (*.*),*.*", _
+             Title:="Ouvrir le fichier de suivi", MultiSelect:=False)
+            If Fichier_suivi = False Then Exit Sub
+            Workbooks.Open Fichier_suivi
+        Else
+            Exit Sub
+        End If
+        Resume Next
+    Else
+        Exit Sub
+    End If
+    
     C_Date = getWordCol(jour, 1)
     If C_Date = 0 Then
         MsgBox "La date " & jour & " n'a pas été trouvée dans le fichier " & Fichier_suivi
