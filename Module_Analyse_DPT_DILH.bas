@@ -2,7 +2,16 @@ Attribute VB_Name = "Module_Analyse_DPT_DILH"
 '=====================
 'Copyright 2013
 'Auteur  : Simon Verley
-'Version : 1.2.2
+'Version : 1.2.5
+' Nouveautés : - traiteFichier devient completeSuivi
+'              - macro de mise en forme automatique et conditionnelle
+'              - mise en forme appliquée dans analyseFichier
+'Version : 1.2.4
+' BUG : le filtrage des default DTP < 1.2s est plus complet
+'Version précédente : 1.2.3
+' BUG : le comptage des trains en cours d'IM n'est plus basé sur les détections lasers
+' Nouveautés : Filtrages des defauts DPT < 1.2s
+' Embellissement : Message si 1 IM sans default détecté
 '=====================
 
 Sub analyseFichier()
@@ -14,24 +23,27 @@ Sub analyseFichier()
     Dim compteur_train_im As Integer
     Dim compteur_train_dilh1 As Integer
     Dim compteur_train_dilh2 As Integer
+    Dim horaires_train As String
     Dim compteur_rapi As Integer
     Dim horaires_rapi As String
     Dim compteur_im As Integer
     Dim duree_im As Long
     Dim horaires_im() As String
     
-    If analyseDefautDPTetDILH(jour, Quai, compteur_train, compteur_train_im, compteur_train_dilh1, compteur_train_dilh2, _
+    If analyseDefautDPTetDILH(jour, Quai, compteur_train, compteur_train_im, compteur_train_dilh1, compteur_train_dilh2, horaires_train, _
         compteur_rapi, horaires_rapi, compteur_im, duree_im, horaires_im) _
         <> 0 Then Exit Sub
     
-    genereRapport compteur_train, compteur_train_im, compteur_train_dilh1, compteur_train_dilh2, _
+    genereRapport compteur_train, compteur_train_im, compteur_train_dilh1, compteur_train_dilh2, horaires_train, _
         compteur_rapi, horaires_rapi, compteur_im, duree_im, horaires_im
+    
+    metForme
     
     MsgBox "Le rapport d'analyse du fichier " & ActiveWorkbook.FullName & " a été généré (suffixe '_Analyse.txt adjoint')."
 
 End Sub
 
-Sub traiteFichier()
+Sub completeSuivi()
 '    ------------
     Dim jour As Date
     Dim Station As String
@@ -40,17 +52,18 @@ Sub traiteFichier()
     Dim compteur_train_im As Integer
     Dim compteur_train_dilh1 As Integer
     Dim compteur_train_dilh2 As Integer
+    Dim horaires_train As String
     Dim compteur_rapi As Integer
     Dim horaires_rapi As String
     Dim compteur_im As Integer
     Dim duree_im As Long
     Dim horaires_im() As String
     
-    If analyseDefautDPTetDILH(jour, Quai, compteur_train, compteur_train_im, compteur_train_dilh1, compteur_train_dilh2, _
+    If analyseDefautDPTetDILH(jour, Quai, compteur_train, compteur_train_im, compteur_train_dilh1, compteur_train_dilh2, horaires_train, _
         compteur_rapi, horaires_rapi, compteur_im, duree_im, horaires_im) _
         <> 0 Then Exit Sub
     
-    genereRapport compteur_train, compteur_train_im, compteur_train_dilh1, compteur_train_dilh2, _
+    genereRapport compteur_train, compteur_train_im, compteur_train_dilh1, compteur_train_dilh2, horaires_train, _
         compteur_rapi, horaires_rapi, compteur_im, duree_im, horaires_im
     
     
@@ -112,10 +125,92 @@ ErrHandler:
     'Range("A1") = Rapport
 End Sub
 
+Sub metForme()
+'
+' Macro1 Macro
+'
+'
+    ' le nom des tableaux suivant correspond a "Couleur si 0"+"Couleur si 1"
+    VertGris = Array("PPFV*", "E_PT_MP05*", "PT_Confirme*")
+    GrisVert = Array("E_PT_MP89*", "E_Acq_MES*", "E_Acq_PP*", "Redém_API")
+    GrisRouge = Array("SLG_PP*", "SLC_PP*", "SLD_PP*", "E_DILF_SL*", "UTG*", "UTC*", "UTD*", "*.Defaut_Dyna", "*.Defaut_SurfRef", "*.Incoherent", "Dyn*_DF*", "SF*_DF*", "DFQ*_SL*")
+    RougeGris = Array("UTH*")
+    RougeVert = Array("Info_Maint", "E_Def_DPT*", "Diag_Tapis*", "*.DonneesRecCor")
+    
+    C_PT_Confirme = getWordCol("PT_Confirme", 1, True) '10
+    If C_PT_Confirme = 0 Then
+        MsgBox "Ce fichier n'est pas compatible. (" & ActiveWorkbook.FullName & ")"
+        Exit Sub
+    End If
+    C_PPFV = getWordCol("PPFV", 1, True)
+    C_Acq = getWordCol("E_Acq", 1, True)
+    If C_Acq <> 0 Then
+        NbPP = C_Acq - C_PT_Confirme - 1
+    Else
+        NbPP = getWordCol("E_Def_DPT", 1, True) - C_PT_Confirme - 1
+    End If
+    
+    Application.ScreenUpdating = False
+    ' Application du filtre automatique
+    If Not ActiveSheet.AutoFilterMode Then
+        ActiveSheet.UsedRange.AutoFilter
+    End If
+    
+    With Rows("1:1")
+        .HorizontalAlignment = xlCenter
+        .VerticalAlignment = xlCenter
+        .Orientation = 90
+    End With
+    Rows("1:1").Interior.ColorIndex = 15
+    ' Figeage des volets
+    Range("G2").Activate
+    ActiveWindow.FreezePanes = True
+    ' Colonnes dates et heure
+    Columns("A:F").ColumnWidth = 5
+    Columns("D:F").Interior.ColorIndex = 15
+    
+    Dim c As Integer
+    ' Boucle sur colonne
+    ColSansMEF = ""
+    For c = C_PPFV To Range("iv1").End(xlToLeft).Column
+        If IsInArray(Cells(1, c), RougeVert) Then
+            appliqueMEFC c, 3, 4
+        ElseIf IsInArray(Cells(1, c), GrisVert) Then
+            appliqueMEFC c, 15, 43
+        ElseIf IsInArray(Cells(1, c), VertGris) Then
+            appliqueMEFC c, 43, 15
+        ElseIf IsInArray(Cells(1, c), RougeGris) Then
+            appliqueMEFC c, 53, 15
+        ElseIf IsInArray(Cells(1, c), GrisRouge) Then
+            appliqueMEFC c, 15, 53
+        ElseIf c > C_PT_Confirme And c <= C_PT_Confirme + NbPP Then
+        Else
+            ColSansMEF = ColSansMEF & " " & Cells(1, c)
+        End If
+    Next c
+    For c = C_PT_Confirme + 1 To C_PT_Confirme + NbPP
+        appliqueMEFC c, 53, 15
+    Next c
+    If Not ColSansMEF = "" Then MsgBox "Les colonnes " & ColSansMEF & " n'ont pas été mises en forme."
+    
+    Application.ScreenUpdating = True
+    
+End Sub
+
 '====================================================================================================================
 
+Private Sub appliqueMEFC(col As Integer, couleur_0 As Integer, couleur_1 As Integer) 'couleur() As String)
+    Columns(col).Select
+    Selection.ColumnWidth = 3#
+    Selection.FormatConditions.Delete
+    Selection.FormatConditions.Add Type:=xlCellValue, Operator:=xlEqual, Formula1:="0"
+    Selection.FormatConditions(1).Interior.ColorIndex = couleur_0
+    Selection.FormatConditions.Add Type:=xlCellValue, Operator:=xlEqual, Formula1:="1"
+    Selection.FormatConditions(2).Interior.ColorIndex = couleur_1
+End Sub
+
 Function analyseDefautDPTetDILH(ByRef jour As Date, ByRef Quai As String, _
-        ByRef compteur_train As Integer, ByRef compteur_train_im As Integer, ByRef compteur_train_dilh1 As Integer, ByRef compteur_train_dilh2 As Integer, _
+        ByRef compteur_train As Integer, ByRef compteur_train_im As Integer, ByRef compteur_train_dilh1 As Integer, ByRef compteur_train_dilh2 As Integer, ByRef horaires_train As String, _
         ByRef compteur_rapi As Integer, ByRef horaires_rapi As String, _
         ByRef compteur_im As Integer, ByRef duree_im As Long, ByRef horaires_im() As String _
         ) As Integer
@@ -162,6 +257,7 @@ Function analyseDefautDPTetDILH(ByRef jour As Date, ByRef Quai As String, _
     compteur_train_im = 0
     compteur_train_dilh1 = 0
     compteur_train_dilh2 = 0
+    horaires_train = ""
     
     last_rapi = 0 'Valeur par default
     compteur_rapi = 0
@@ -172,7 +268,8 @@ Function analyseDefautDPTetDILH(ByRef jour As Date, ByRef Quai As String, _
     compteur_im = 0
     duree_im = 0
     analyse_im = False
-
+    prof_recherche = 100
+    
     ' Acquisition du jour précédent l'analyse
     jour_precedent = DateSerial(Cells(i, C_Annee), Cells(i, C_Mois), Cells(i, C_Jour))
 
@@ -190,16 +287,19 @@ Function analyseDefautDPTetDILH(ByRef jour As Date, ByRef Quai As String, _
     C_SLG = getWordCol("DonneesRecCor", 1, True)
     '
     'Boucle sur toutes les cellules de la colonne A
-    'et on sort si on passe Heure_fin:Minute_fin de jour_precedent_2
+    'et on sort si on passe Heure_fin:Minute_fin de jour_precedent+2
     '
     Lasti = False
-    For i = 2 To CLng(Range("A65536").End(xlUp).Row)
+    NbLignes = CLng(Range("A65536").End(xlUp).Row)
+    For i = 2 To NbLignes
         jour = DateSerial(Cells(i, C_Annee), Cells(i, C_Mois), Cells(i, C_Jour))
+        heure = jour * 24 * 3600 + Cells(i, C_Heure) * 3600 + Cells(i, C_Minute) * 60 + Cells(i, C_Seconde)
         If jour = jour_precedent Then GoTo Nexti
         If jour = jour_precedent + 1 And Cells(i, C_Heure) * 60 + Cells(i, C_Minute) < Heure_deb * 60 + Minute_deb Then GoTo Nexti
-        If jour = jour_precedent + 2 And Cells(i, C_Heure) * 60 + Cells(i, C_Minute) > Heure_fin * 60 + Minute_fin Then
+        If (jour = jour_precedent + 2 And Cells(i + 1, C_Heure) * 60 + Cells(i + 1, C_Minute) > Heure_fin * 60 + Minute_fin) Or i = NbLignes Then
             If Not Lasti Then
                 Lasti = True
+                horaires_train = horaires_train & " à " & Format(TimeSerial(Cells(i, C_Heure), Cells(i, C_Minute), CInt(Cells(i, C_Seconde))), "hh:mm")
                 GoTo FinAnalyse
             End If
             Exit For
@@ -212,7 +312,10 @@ Function analyseDefautDPTetDILH(ByRef jour As Date, ByRef Quai As String, _
         'Test si changement de valeur
         If valeur <> last_train Then
            'Test si descendant
-            If valeur = 0 Then nouveau_train = 1
+            If valeur = 0 Then
+                nouveau_train = 1
+                If compteur_train = 0 Then horaires_train = " de " & Format(TimeSerial(Cells(i, C_Heure), Cells(i, C_Minute), CInt(Cells(i, C_Seconde))), "hh:mm")
+            End If
         End If
         'Memorise l'etat precedent
         last_train = valeur
@@ -249,7 +352,7 @@ Function analyseDefautDPTetDILH(ByRef jour As Date, ByRef Quai As String, _
             If valeur = 0 And last_rapi = 0 Then
                 analyse_im = True
                 compteur_im = compteur_im + 1
-                t_deb_im = jour * 24 * 3600 + Cells(i, C_Heure) * 3600 + Cells(i, C_Minute) * 60 + Cells(i, C_Seconde)
+                t_deb_im = heure
                 ReDim Preserve horaires_im(1 To compteur_im)
                 horaires_im(compteur_im) = Format(TimeSerial(Cells(i, C_Heure), Cells(i, C_Minute), CInt(Cells(i, C_Seconde))), "hh:mm") '& " ; "
                 Dim PP_Def_DPT() As String
@@ -261,7 +364,7 @@ Function analyseDefautDPTetDILH(ByRef jour As Date, ByRef Quai As String, _
 FinAnalyse:
                 If analyse_im Then
                     analyse_im = False
-                    t_fin_im = jour * 24 * 3600 + Cells(i, C_Heure) * 3600 + Cells(i, C_Minute) * 60 + Cells(i, C_Seconde)
+                    t_fin_im = heure
                     duree_im = duree_im + t_fin_im - t_deb_im
                     horaires_im(compteur_im) = horaires_im(compteur_im) & " (" & TimeString(CLng(t_fin_im - t_deb_im)) & ") ; " & " Défauts : " & Chr(10)   '" (" & CInt(t_fin_im - t_deb_im) & "s) ; "
                     defaut = False
@@ -289,10 +392,13 @@ FinAnalyse:
                         End If
                     Next d
                     If Not defaut Then
-                        'horaires_im(compteur_im) = horaires_im(compteur_im) & "      Aucun défaut détecté (Redémarrage API ?)" & Chr(10)
-                        compteur_im = compteur_im - 1
-                        ReDim Preserve horaires_im(1 To compteur_im)
-                        duree_im = duree_im - t_fin_im + t_deb_im
+                        If compteur_im > 1 Then
+                            compteur_im = compteur_im - 1
+                            ReDim Preserve horaires_im(1 To compteur_im)
+                            duree_im = duree_im - t_fin_im + t_deb_im
+                        Else
+                            horaires_im(compteur_im) = horaires_im(compteur_im) & "      Aucun défaut détecté automatiquement" & Chr(10)
+                        End If
                     Else
                         horaires_im(compteur_im) = horaires_im(compteur_im) & Chr(10)
                     End If
@@ -302,12 +408,23 @@ FinAnalyse:
             End If
         End If
         ' Analyse des defauts
+        ' ----------------
         If analyse_im And valeur = 0 Then
+            ' Default DPT
             For c = 0 To 2
                 If Cells(i, C_Def_DPT + c) = 0 And PP_Def_DPT(c) = "" Then
-                    PP_Def_DPT(c) = Cells(1, C_Def_DPT + c) & " (" & Cells(i, C_Heure) & ":" & Format(Cells(i, C_Minute), "00") & ")"
+                    For j = 1 To prof_recherche
+                        jour_suivant = DateSerial(Cells(i + j, C_Annee), Cells(i + j, C_Mois), Cells(i + j, C_Jour))
+                        heure_suivante = jour_suivant * 24 * 3600 + Cells(i + j, C_Heure) * 3600 + Cells(i + j, C_Minute) * 60 + Cells(i + j, C_Seconde)
+                        If heure_suivante - heure > 1.2 Or heure_suivante = 0 Or j = prof_recherche Then
+                            PP_Def_DPT(c) = Cells(1, C_Def_DPT + c) & " (" & Cells(i, C_Heure) & ":" & Format(Cells(i, C_Minute), "00") & ")"
+                            Exit For
+                        End If
+                        If Cells(i + j, C_Def_DPT + c) = 1 Then Exit For
+                    Next j
                 End If
             Next c
+            ' Default capteur laser
             nb_capteur = 0
             For pp = 1 To NbPP
                 nb_capteur_pp = 0
@@ -330,7 +447,7 @@ FinAnalyse:
             ElseIf nb_capteur > 1 Then
                 compteur_train_dilh2 = compteur_train_dilh2 + nouveau_train
             End If
-            If nb_capteur > 0 Then compteur_train_im = compteur_train_im + nouveau_train
+            compteur_train_im = compteur_train_im + nouveau_train
         End If
         'Memorise l'etat precedent
         last_im = valeur
@@ -341,7 +458,7 @@ Nexti:
     
 End Function
 
-Sub genereRapport(compteur_train As Integer, compteur_train_im As Integer, compteur_train_dilh1 As Integer, compteur_train_dilh2 As Integer, _
+Sub genereRapport(compteur_train As Integer, compteur_train_im As Integer, compteur_train_dilh1 As Integer, compteur_train_dilh2 As Integer, horaires_train As String, _
         compteur_rapi As Integer, horaires_rapi As String, _
         compteur_im As Integer, duree_im As Long, horaires_im() As String, _
         Optional afficheRapport As Boolean = True)
@@ -349,7 +466,7 @@ Sub genereRapport(compteur_train As Integer, compteur_train_im As Integer, compt
     Rapport = _
            " Rapport d'analyse du fichier : " & ActiveWorkbook.FullName & Chr(10) & Chr(10) & _
            "Trains : " & Chr(10) & _
-           "  " & compteur_train & " passages de train." & Chr(10) & _
+           "  " & compteur_train & " passages de train " & horaires_train & Chr(10) & _
            "  dont " & compteur_train_im & " pendant Info Maintenance." & Chr(10)
     If compteur_train_dilh1 > 0 Then Rapport = Rapport & _
            "     DILH défaut simple : " & compteur_train_dilh1 & Chr(10)
@@ -368,10 +485,12 @@ Sub genereRapport(compteur_train As Integer, compteur_train_im As Integer, compt
             Rapport = Rapport & "  @ " & Line
         Next Line
     End If
-
-    Fichier_sortie = ActiveWorkbook.FullName & "_Analyse.txt"
-    'Fichier_sortie = "Analyse.txt"
-
+    
+    If InStr(Application.OperatingSystem, "Macintosh") > 0 Then
+        Fichier_sortie = "Analyse.txt"
+    Else
+        Fichier_sortie = ActiveWorkbook.FullName & "_Analyse.txt"
+    'End If
     ' Declare a FileSystemObject.
     'Dim fso As New FileSystemObject
     ' Declare a TextStream.
@@ -393,17 +512,29 @@ Sub genereRapport(compteur_train As Integer, compteur_train_im As Integer, compt
     'stream.WriteLine h
     ' Close the file.
     'stream.Close
-
+    
     file2Write = FreeFile() ' assign next free file number to this variable
     Open Fichier_sortie For Output As file2Write ' output is for writing to a file
     Print #file2Write, Rapport
     Close #file2Write
-
+    End If
     'MsgBox "Le rapport d'analyse a été généré dans le fichier " & Fichier_sortie '& " dans Mes Documents"
-
+    If afficheRapport Then
+    If InStr(Application.OperatingSystem, "Macintosh") > 0 Then
+       ' Dim strScript As String
+       ' strScript = strScript & "tell application ""TextEdit"" " & vbCr
+       ' strScript = strScript & "open """ & Fichier_sortie & """ " & vbCr
+       ' strScript = strScript & "activate" & vbCr
+       ' strScript = strScript & "end tell"
+       '
+       ' MacScript strScript
+       ' AppActivate "TextEdit", True
+        MsgBox Rapport
+    Else
     'commande de lancement de IE
-    If afficheRapport Then Shell "C:\WINDOWS\explorer.exe " & Fichier_sortie
-    
+        Shell "C:\WINDOWS\explorer.exe " & Fichier_sortie
+    End If
+    End If
 End Sub
 
 Public Function getWordCol(ByVal sExpression As String, ByVal iLineNumber As Integer, Optional ByVal bPartial As Boolean = False, Optional ByVal bSelectResult As Boolean = False, Optional vsSheetName As Variant) As Integer
@@ -504,6 +635,29 @@ Public Function SecondsToDate(Secondes As Long, Optional Fmt As String = "hh:mm:
 
     SecondsToDate = Format(TimeValue(nb_heure & ":" & nb_minute & ":" & nb_seconde), Fmt)
 
+End Function
+
+Public Function IsInArray(FindValue As String, arrSearch As _
+   Variant, Optional ByVal bPartial As Boolean = False) As Boolean
+
+    On Error GoTo LocalError
+    If Not IsArray(arrSearch) Then Exit Function
+    
+        'IsInArray = InStr(1, vbNullChar & Join(arrSearch, _
+     vbNullChar) & vbNullChar, vbNullChar & FindValue & _
+     vbNullChar) > 0
+    'Else
+    For Each patron In arrSearch
+        If bPartial Then patron = "*" & patron & "*"
+        If FindValue Like patron Then
+            IsInArray = True
+            Exit Function
+        End If
+    Next patron
+    'End If
+Exit Function
+LocalError:
+    'Justin (just in case)
 End Function
 
 
