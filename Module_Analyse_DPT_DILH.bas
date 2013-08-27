@@ -1,7 +1,13 @@
 Attribute VB_Name = "Module_Analyse_DPT_DILH"
+Public Const Version = "1.3.1"
 '=====================
 'Copyright 2013
 'Auteur  : Simon Verley
+'Version = 1.3.1
+' BUG        : - Correction de la detection du quai dans completeSuivi
+'              - Correction de la date de report
+' Nouveautés : - Report des defauts Alim et Relai dans completeSuivi
+'              - Modification du nom du fichier de report dans completeSuivi (ajout d'un suffix de la version de cette macro)
 'Version : 1.3.0
 ' Nouveautés : - Detection des defauts Alim et Relai (ToDO: les faire parvenir jusqu'a completeSuivi)
 'Version : 1.2.8
@@ -93,7 +99,7 @@ Sub completeSuivi()
         <> 0 Then Exit Sub
     
     genereRapport compteur_train, compteur_train_im, compteur_train_dilh1, compteur_train_dilh2, horaires_train, horaires_default_train, _
-        compteur_rapi, horaires_rapi, compteur_im, duree_im, horaires_im, compteur_dilh, compteur_dpt, compteur_alim, compteur_rel
+        compteur_rapi, horaires_rapi, compteur_im, duree_im, horaires_im, compteur_dilh, compteur_dpt, compteur_alim, compteur_rel, False
     
     
     ' Détection de la station à partir du nom de fichier
@@ -109,12 +115,12 @@ Sub completeSuivi()
     End If
         
     
-    Fichier_suivi = "Suivi défaut DIL.xls"
+    Fichier_suivi = "Suivi défaut DIL_" & Version & ".xls"
     
     On Error GoTo ErrHandler:
         Windows(Fichier_suivi).Activate
 ErrHandler:
-    MsgBox Err.Number
+    'MsgBox Err.Number
     If Err.Number = 9 Then
         test = MsgBox(Prompt:="Le fichier de suivi est-il déjà ouvert ?", _
             Buttons:=vbYesNoCancel, Title:="Fichier de suivi")
@@ -136,7 +142,7 @@ ErrHandler:
     On Error GoTo StationErrHandler:
         Worksheets(Station).Activate
 StationErrHandler:
-    MsgBox Err.Number
+    'MsgBox Err.Number
     If Err.Number = 9 Then
         Station = InputBox(Prompt:="La feuille '" & Station & "' n'a pas pu être trouvée dans le fichier " & Fichier_suivi & Chr(10) _
           & "Veuiller entrer le nom de la feuille correspondante à la station analysée :", _
@@ -150,17 +156,28 @@ StationErrHandler:
         Exit Sub
     End If
     nb_lignes_quai = 44
-    L_Quai = getWordLine(Quai, 1)
+    L_Quai = getWordLine(Quai, 1, True)
     If L_Quai = 0 Then
-        MsgBox "Le quai " & Quai & " n'a pas été trouvé dans le fichier " & Fichier_suivi
+        MsgBox "Le quai '" & Quai & "' n'a pas été trouvé dans le fichier " & Fichier_suivi
         Exit Sub
     End If
-    Cells(L_Quai + 1, C_Date) = compteur_im
-    Cells(L_Quai + 2, C_Date) = Format(SecondsToDate(duree_im&), "hh:mm")
-    Cells(L_Quai + 3, C_Date) = compteur_dilh
-    Cells(L_Quai + 4, C_Date) = compteur_dpt
+    Pos_Q1 = getWordLine("Q", 1, True, True)
+    Pos_AlarmIM = getWordLine("Alarme IM", 1, False, True) - Pos_Q1
+    Pos_Duree = getWordLine("Durée de la panne", 1, False, True) - Pos_Q1
+    Pos_DefautSL = getWordLine("Défaut SL", 1, False, True) - Pos_Q1
+    Pos_DefautDPT = getWordLine("Défaut DPT", 1, False, True) - Pos_Q1
+    Pos_DefautUD1N = getWordLine("Défaut autre UD1N", 1, False, True) - Pos_Q1
+    'Pos_IM = getWordLine("Intervention Maintenance", 1, False, True) - Pos_Q1
+    Pos_RedemAPI = getWordLine("Rédem API", 1, False, True) - Pos_Q1
+    'Pos_ChgmtUD1N = getWordLine("Changement UD1N", 1, False, True) - Pos_Q1
+    
+    Cells(L_Quai + Pos_AlarmIM, C_Date) = compteur_im
+    Cells(L_Quai + Pos_Duree, C_Date) = Format(SecondsToDate(duree_im&), "hh:mm")
+    Cells(L_Quai + Pos_DefautSL, C_Date) = compteur_dilh
+    Cells(L_Quai + Pos_DefautDPT, C_Date) = compteur_dpt
+    Cells(L_Quai + Pos_DefautUD1N, C_Date) = compteur_alim + compteur_rel
     'Cells(L_Quai + 8, C_Date) = compteur_im
-    Cells(L_Quai + 9, C_Date) = compteur_rapi
+    Cells(L_Quai + Pos_RedemAPI, C_Date) = compteur_rapi
     'C_Date = getWordCol(
     'Range("A1") = Rapport
 End Sub
@@ -346,7 +363,6 @@ Function analyseDefautDPTetDILH(ByRef jour As Date, ByRef Quai As String, _
     ' Détection du nombre de capteur relais
     NbREL = getWordLastCol("Defaut_Rel", 1, True) - C_REL + 1
     
-    Debug.Print C_ALIM, NbALIM, C_REL, NbREL
     '
     'Boucle sur toutes les cellules de la colonne A
     'et on sort si on passe Heure_fin:Minute_fin de jour_precedent+2
@@ -356,6 +372,8 @@ Function analyseDefautDPTetDILH(ByRef jour As Date, ByRef Quai As String, _
     Lasti = False
     Firsti = 0
     NbLignes = CLng(Range("A65536").End(xlUp).Row)
+    Debug.Print "  Jour      : " & jour_precedent + 1
+    Debug.Print "  Nb Lignes : " & NbLignes
     For i = 2 To NbLignes
         jour = DateSerial(Cells(i, C_Annee), Cells(i, C_Mois), Cells(i, C_Jour))
         heure = jour * 24 * 3600 + Cells(i, C_Heure) * 3600 + Cells(i, C_Minute) * 60 + Cells(i, C_Seconde)
@@ -367,14 +385,17 @@ Function analyseDefautDPTetDILH(ByRef jour As Date, ByRef Quai As String, _
             Firsti = i
         End If
         If (jour = jour_precedent + 2 And Cells(i + 1, C_Heure) * 60 + Cells(i + 1, C_Minute) > Heure_fin * 60 + Minute_fin) Or i = NbLignes Then
-            If i = NbLignes Then MsgBox "La macro a atteint la derniere ligne du fichier. Deux raisons peuvent à l'origine de ce message : " & Chr(10) _
-              & "- Le fichier de log se termine avant l'heure de fin d'analyse :" & Chr(10) _
-              & "    > Vérifiez que la dernière ligne du log correspond à l'horaire " & last_horaire_train & Chr(10) _
-              & "- Le fichier est trop long pour une analyse complète." & Chr(10) _
+            'If i = NbLignes Then MsgBox "La macro a atteint la derniere ligne du fichier. Deux raisons peuvent à l'origine de ce message : " & Chr(10)
+            If i = 65536 Then
+                MsgBox "Le fichier est trop long pour une analyse complète." & Chr(10) _
               & "    > Veuillez effacer les lignes de 2 à " & Firsti & " en dehors d'Excel (via Bloc-notes par exemple) et relancer l'analyse ensuite."
+            'ElseIf i = NbLignes Then
+                'MsgBox "Le fichier de log se termine avant l'heure de fin d'analyse :" & Chr(10) _
+              & "    > Vérifiez que la dernière ligne du log correspond à l'horaire " & last_horaire_train & Chr(10)
+            End If
             If Not Lasti Then
                 Lasti = True
-                horaires_train = horaires_train & " à " & last_horaire_train
+                horaires_train = horaires_train & " à " & last_horaire_train & " le " & jour
                 If Cells(i, C_Train) = 0 Then horaires_train = horaires_train & " (train encore à quai à " & Heure_fin & "h" & Minute_fin & ")"
                 GoTo FinAnalyse
             End If
@@ -391,7 +412,7 @@ Function analyseDefautDPTetDILH(ByRef jour As Date, ByRef Quai As String, _
             If valeur = 0 Then
                 nouveau_train = 1
                 last_horaire_train = Format(TimeSerial(Cells(i, C_Heure), Cells(i, C_Minute), CInt(Cells(i, C_Seconde))), "hh:mm:ss")
-                If compteur_train = 0 Then horaires_train = " de " & last_horaire_train
+                If compteur_train = 0 Then horaires_train = " de " & last_horaire_train & " le " & jour
             ElseIf valeur = 1 Then
                 If Not flag_ppfv Or Not flag_copp Then
                     horaires_default_train = horaires_default_train & last_horaire_train & " ("
@@ -591,12 +612,16 @@ FinAnalyse:
         End If
         'Memorise l'etat precedent
         last_im = valeur
-
 Nexti:
         'Incrémente la variable d'une unité afin de tester la cellule suivante
     Next i
     
-    Debug.Print compteur_alim, compteur_rel
+    'Corrige la date d'analyse en cas de fin > 00h00
+    Debug.Print "  Dernier train à " & last_horaire_train & " le " & jour
+    jour = jour_precedent + 1
+    Debug.Print "================================"
+    Debug.Print " Fin de analyseDefautDPTetDILH"
+    Debug.Print "================================"
     
 End Function
 
@@ -755,14 +780,15 @@ Public Function getWordLastCol(ByVal sExpression As String, ByVal iLineNumber As
     End If
 End Function
 
-Public Function getWordLine(ByVal sExpression As String, ByVal iColNumber As Integer, Optional ByVal bPartial As Boolean = False, Optional ByVal bSelectResult As Boolean = False, Optional vsSheetName As Variant) As Integer
-'   sExpression       mot(s) ou partie de mot à chercher
+Public Function getWordLine(ByVal sExpression As String, ByVal iColNumber As Integer, Optional ByVal bPartial As Boolean = False, Optional ByVal bCheck As Boolean = False, Optional ByVal bSelectResult As Boolean = False, Optional vsSheetName As Variant) As Integer
+'   sExpression     mot(s) ou partie de mot à chercher
 '   iColNumber      numero de la colonne dans laquelle chercher
-'   bPartial              choix sur le mot comlet ou partie du  mot
-'   bSelectResult     sélectionner la cellule de  la première occurence trouvée
+'   bPartial        choix sur le mot comlet ou partie du  mot
+'   bCheck          verifie que le resultat est > 0
+'   bSelectResult   sélectionner la cellule de  la première occurence trouvée
 '   vsSheetName     nom de la feuille dans laquelle cherche, celle active par défaut
-'   RETURN              numéro de la colonne de la première occurence trouvée
-    Dim iLineStop    As Integer
+'   RETURN          numéro de la colonne de la première occurence trouvée
+    Dim iLineStop   As Integer
     Dim i           As Integer
 
     'selection  feuille
@@ -788,6 +814,7 @@ Public Function getWordLine(ByVal sExpression As String, ByVal iColNumber As Int
             End If
         Next i
     End If
+    If getWordLine = 0 Then MsgBox ("La ligne comprenant le texte " & sExpression & " n'a pas pu etre trouvée dans la colonne numéro " & iColNumber)
 End Function
 
 Public Function TimeString(Secondes As Long) As String
