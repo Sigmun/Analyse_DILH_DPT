@@ -1,9 +1,11 @@
 Attribute VB_Name = "Module_Analyse_DPT_DILH"
-Public Const Version = "1.3.1"
+Public Const Version = "1.3.2"
 '=====================
 'Copyright 2013
 'Auteur  : Simon Verley
-'Version = 1.3.1
+'Version : 1.3.2
+' Nouveautés : - Report des passages de trains dans completeSuivi
+'Version : 1.3.1
 ' BUG        : - Correction de la detection du quai dans completeSuivi
 '              - Correction de la date de report
 ' Nouveautés : - Report des defauts Alim et Relai dans completeSuivi
@@ -170,6 +172,9 @@ StationErrHandler:
     'Pos_IM = getWordLine("Intervention Maintenance", 1, False, True) - Pos_Q1
     Pos_RedemAPI = getWordLine("Rédem API", 1, False, True) - Pos_Q1
     'Pos_ChgmtUD1N = getWordLine("Changement UD1N", 1, False, True) - Pos_Q1
+    Pos_NbTrains = getWordLine("Nombre echange voyageurs total", 1, False, True) - Pos_Q1
+    Pos_NbTrainsDouble = getWordLine("Nb éch voy avec exploitant", 1, False, True) - Pos_Q1
+    Pos_NbTrainsIM = getWordLine("Nb éch voy IM active (Fonctionnement dégradé 2/2)", 1, False, True) - Pos_Q1
     
     Cells(L_Quai + Pos_AlarmIM, C_Date) = compteur_im
     Cells(L_Quai + Pos_Duree, C_Date) = Format(SecondsToDate(duree_im&), "hh:mm")
@@ -178,6 +183,11 @@ StationErrHandler:
     Cells(L_Quai + Pos_DefautUD1N, C_Date) = compteur_alim + compteur_rel
     'Cells(L_Quai + 8, C_Date) = compteur_im
     Cells(L_Quai + Pos_RedemAPI, C_Date) = compteur_rapi
+    
+    Cells(L_Quai + Pos_NbTrains, C_Date) = compteur_train
+    Cells(L_Quai + Pos_NbTrainsIM, C_Date) = compteur_train_im
+    Cells(L_Quai + Pos_NbTrainsDouble, C_Date) = compteur_train_dilh2
+    
     'C_Date = getWordCol(
     'Range("A1") = Rapport
 End Sub
