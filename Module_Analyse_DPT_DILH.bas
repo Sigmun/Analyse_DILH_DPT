@@ -1,8 +1,11 @@
 Attribute VB_Name = "Module_Analyse_DPT_DILH"
-Public Const Version = "1.3.2"
+Public Const Version = "1.3.3"
 '=====================
 'Copyright 2013
 'Auteur  : Simon Verley
+'Version : 1.3.3
+' BUG        : - Correction du compteur de defaut dilh
+' Parametrage: - Modification du delai seuil de defaut DPT (passage a 1.5)
 'Version : 1.3.2
 ' Nouveautés : - Report des passages de trains dans completeSuivi
 'Version : 1.3.1
@@ -300,6 +303,7 @@ Function analyseDefautDPTetDILH(ByRef jour As Date, ByRef Quai As String, _
     Minute_deb = 0
     Heure_fin = 2
     Minute_fin = 20
+    Delai_defaut_DPT = 1.5
 
     C_PT_Confirme = getWordCol("PT_Confirme", 1, True) '10
     If C_PT_Confirme = 0 Then
@@ -565,7 +569,7 @@ FinAnalyse:
                     For j = 1 To prof_recherche
                         jour_suivant = DateSerial(Cells(i + j, C_Annee), Cells(i + j, C_Mois), Cells(i + j, C_Jour))
                         heure_suivante = jour_suivant * 24 * 3600 + Cells(i + j, C_Heure) * 3600 + Cells(i + j, C_Minute) * 60 + Cells(i + j, C_Seconde)
-                        If (heure_suivante - heure > 1.2 Or heure_suivante = 0 Or j = prof_recherche) And Cells(i + j, C_Def_DPT + c) = 0 Then
+                        If (heure_suivante - heure > Delai_defaut_DPT Or heure_suivante = 0 Or j = prof_recherche) And Cells(i + j, C_Def_DPT + c) = 0 Then
                             compteur_dpt = compteur_dpt + 1
                             PP_Def_DPT(c) = Cells(1, C_Def_DPT + c) & " (" & Cells(i, C_Heure) & ":" & Format(Cells(i, C_Minute), "00") & " pdt " & CInt(heure_suivante - heure) & "s)"
                             Exit For
@@ -585,11 +589,11 @@ FinAnalyse:
                         dcpp = (pp - 1) * 3 + (c - 1) * 3 + d
                         C_dcpp = C_SLG + (pp - 1) * 12 + (c - 1) * 4 + d
                         If Cells(i, C_dcpp) = 1 Then
-                            def_capteur = True
                             If PP_Def_DILH(dcpp) = "" Then
                                 PP_Def_DILH(dcpp) = Cells(1, C_PT_Confirme + pp) & " " & Cells(1, C_dcpp) & " (" & Cells(i, C_Heure) & ":" & Format(Cells(i, C_Minute), "00") & ")"
-                                compteur_dilh = compteur_dilh + 1
+                                If Not def_capteur Then compteur_dilh = compteur_dilh + 1
                             End If
+                            def_capteur = True
                         End If
                     Next d
                     If def_capteur Then
@@ -603,7 +607,6 @@ FinAnalyse:
             ElseIf nb_capteur > 1 Then
                 compteur_train_dilh2 = compteur_train_dilh2 + nouveau_train
             End If
-            ' Defauts Alim
             For c = 0 To NbALIM - 1
                 If (Cells(i, C_ALIM + c) = 0 And PP_Def_ALIM(c) = "") Then
                     PP_Def_ALIM(c) = Cells(1, C_ALIM + c) & " (" & Cells(i, C_Heure) & ":" & Format(Cells(i, C_Minute), "00") & ")"
