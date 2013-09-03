@@ -1,8 +1,10 @@
 Attribute VB_Name = "Module_Analyse_DPT_DILH"
-Public Const Version = "1.3.5"
+Public Const Version = "1.3.6"
 '=====================
 'Copyright 2013
 'Auteur  : Simon Verley
+'Version : 1.3.6
+' BUG        : - Correction de la recherche du nombre de col relai et du nombre de col alim
 'Version : 1.3.5
 ' BUG        : - Correction de la recherche de la derniere colonne (getWordLastCol)
 'Version : 1.3.4
@@ -375,10 +377,12 @@ Function analyseDefautDPTetDILH(ByRef jour As Date, ByRef Quai As String, _
     'End If
     ' Détection colonne premier defaut alim
     C_ALIM = getWordCol("Diag_Alim", 1, True)
+    C_ALIM_f = getWordLastCol("Diag_Bat", 1, True)
     ' Détection du nombre de capteur alim
-    NbALIM = getWordLastCol("Diag_Bat", 1, True) - C_ALIM + 1
+    NbALIM = C_ALIM_f - C_ALIM + 1
     ' Détection colonne premier defaut relais
-    C_REL = getWordCol("Defaut_Acq", 1, True)
+    'C_REL = getWordCol("Defaut_Acq", 1, True)
+    C_REL = C_ALIM_f + 1
     ' Détection du nombre de capteur relais
     NbREL = getWordLastCol("Defaut_Rel", 1, True) - C_REL + 1
     
@@ -394,6 +398,8 @@ Function analyseDefautDPTetDILH(ByRef jour As Date, ByRef Quai As String, _
     Debug.Print "  Jour      : " & jour_precedent + 1
     Debug.Print "  Nb Lignes : " & NbLignes
     Debug.Print "  Nb PP     : " & NbPP & " " & C_SLG & " " & C_SLG_f
+    Debug.Print "  Nb Alim   : " & NbALIM & " " & C_ALIM & " " & getWordLastCol("Diag_Bat", 1, True)
+    Debug.Print "  Nb Rel    : " & NbREL & " " & C_REL & " " & getWordLastCol("Defaut_Rel", 1, True)
     For i = 2 To NbLignes
         jour = DateSerial(Cells(i, C_Annee), Cells(i, C_Mois), Cells(i, C_Jour))
         heure = jour * 24 * 3600 + Cells(i, C_Heure) * 3600 + Cells(i, C_Minute) * 60 + Cells(i, C_Seconde)
