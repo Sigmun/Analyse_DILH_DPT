@@ -1,8 +1,10 @@
 Attribute VB_Name = "Module_Analyse_DPT_DILH"
-Public Const Version = "1.3.3"
+Public Const Version = "1.3.4"
 '=====================
 'Copyright 2013
 'Auteur  : Simon Verley
+'Version : 1.3.4
+' BUG        : - Correction de la recherche de date
 'Version : 1.3.3
 ' BUG        : - Correction du compteur de defaut dilh
 ' Parametrage: - Modification du delai seuil de defaut DPT (passage a 1.5)
@@ -156,7 +158,7 @@ StationErrHandler:
     End If
     
     C_Date = getWordCol(jour, 1)
-    If C_Date = 0 Then
+    If C_Date < 2 Then
         MsgBox "La date " & jour & " n'a pas été trouvée dans le fichier " & Fichier_suivi
         Exit Sub
     End If
@@ -737,7 +739,8 @@ Public Function getWordCol(ByVal sExpression As String, ByVal iLineNumber As Int
     If Not IsMissing(vsSheetName) Then Sheets(vsSheetName).Select
 
     'dernière cellule
-    iColStop = Range("iv1").End(xlToLeft).Column
+    iColStop = 256
+    If Cells(iLineNumber, iColStop) = "" Then iColStop = Range("iv1").End(xlToLeft).Column
 
     If bPartial Then
         For i = 1 To iColStop
@@ -772,7 +775,8 @@ Public Function getWordLastCol(ByVal sExpression As String, ByVal iLineNumber As
     If Not IsMissing(vsSheetName) Then Sheets(vsSheetName).Select
 
     'dernière cellule
-    iColStart = Range("iv1").End(xlToLeft).Column
+    iColStop = 256
+    If Cells(iLineNumber, iColStop) = "" Then iColStop = Range("iv1").End(xlToLeft).Column
 
     If bPartial Then
         For i = iColStart To 1 Step -1
@@ -801,14 +805,15 @@ Public Function getWordLine(ByVal sExpression As String, ByVal iColNumber As Int
 '   bSelectResult   sélectionner la cellule de  la première occurence trouvée
 '   vsSheetName     nom de la feuille dans laquelle cherche, celle active par défaut
 '   RETURN          numéro de la colonne de la première occurence trouvée
-    Dim iLineStop   As Integer
+    Dim iLineStop   As Long
     Dim i           As Integer
 
     'selection  feuille
     If Not IsMissing(vsSheetName) Then Sheets(vsSheetName).Select
 
     'dernière cellule
-    iLineStop = Range("A65536").End(xlUp).Row
+    iLineStop = 65536
+    If Cells(iLineStop, iColNumber) = "" Then iLineStop = Range("A65536").End(xlUp).Row
     
     If bPartial Then
         For i = 1 To iLineStop
