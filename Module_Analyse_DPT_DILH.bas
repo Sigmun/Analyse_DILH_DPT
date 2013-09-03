@@ -1,8 +1,10 @@
 Attribute VB_Name = "Module_Analyse_DPT_DILH"
-Public Const Version = "1.3.4"
+Public Const Version = "1.3.5"
 '=====================
 'Copyright 2013
 'Auteur  : Simon Verley
+'Version : 1.3.5
+' BUG        : - Correction de la recherche de la derniere colonne (getWordLastCol)
 'Version : 1.3.4
 ' BUG        : - Correction de la recherche de date
 'Version : 1.3.3
@@ -361,8 +363,9 @@ Function analyseDefautDPTetDILH(ByRef jour As Date, ByRef Quai As String, _
     C_Def_DPT = getWordCol("E_Def_DPT", 1, True)
     ' Détection colonne premier capteur laser
     C_SLG = getWordCol("DonneesRecCor", 1, True)
+    C_SLG_f = getWordLastCol("DonneesRecCor", 1, True)
     ' Détection du nombre de PP
-    NbPP = (getWordLastCol("DonneesRecCor", 1, True) + 3 - C_SLG + 1) / 12
+    NbPP = (C_SLG_f + 3 - C_SLG + 1) / 12
     'If getWordCol("Att_acq", 1, False) <> 0 Then
     '    NbPP = getWordCol("Att_acq", 1, False) - C_PT_Confirme - 1
     'ElseIf getWordCol("E_Acq", 1, True) <> 0 Then
@@ -390,6 +393,7 @@ Function analyseDefautDPTetDILH(ByRef jour As Date, ByRef Quai As String, _
     NbLignes = CLng(Range("A65536").End(xlUp).Row)
     Debug.Print "  Jour      : " & jour_precedent + 1
     Debug.Print "  Nb Lignes : " & NbLignes
+    Debug.Print "  Nb PP     : " & NbPP & " " & C_SLG & " " & C_SLG_f
     For i = 2 To NbLignes
         jour = DateSerial(Cells(i, C_Annee), Cells(i, C_Mois), Cells(i, C_Jour))
         heure = jour * 24 * 3600 + Cells(i, C_Heure) * 3600 + Cells(i, C_Minute) * 60 + Cells(i, C_Seconde)
@@ -775,9 +779,9 @@ Public Function getWordLastCol(ByVal sExpression As String, ByVal iLineNumber As
     If Not IsMissing(vsSheetName) Then Sheets(vsSheetName).Select
 
     'dernière cellule
-    iColStop = 256
-    If Cells(iLineNumber, iColStop) = "" Then iColStop = Range("iv1").End(xlToLeft).Column
-
+    iColStart = 256
+    If Cells(iLineNumber, iColStart) = "" Then iColStart = Range("iv1").End(xlToLeft).Column
+    
     If bPartial Then
         For i = iColStart To 1 Step -1
             If Cells(iLineNumber, i) Like "*" & sExpression & "*" Then
